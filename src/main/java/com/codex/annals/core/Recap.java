@@ -171,6 +171,7 @@ public final class Recap
 					break;
 				case PET:
 					pets++;
+					collection += e.isSlot() ? 1 : 0;
 					break;
 				case MAX:
 					maxes++;
@@ -219,6 +220,13 @@ public final class Recap
 
 	private String headline(List<Entry> ranked)
 	{
+		for (Entry e : ranked)
+		{
+			if (e.getKind() == Entry.Kind.TOTAL && Annals.MAX_TOTAL_DETAIL.equals(e.getDetail()))
+			{
+				return "The year of the max cape";
+			}
+		}
 		if (maxes > 1)
 		{
 			return "The year of " + count(maxes) + " 99s";

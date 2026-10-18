@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -49,8 +50,11 @@ public final class Timeline
 	{
 	}
 
-	public static List<Row> rows(List<Entry> entries, Entry.Chapter chapter, ZoneId zone)
+	public static List<Row> rows(List<Entry> written, Entry.Chapter chapter, ZoneId zone)
 	{
+		// Written in the order they happened, unless the computer's clock was put back; the timeline goes by the clock.
+		List<Entry> entries = new ArrayList<>(written);
+		entries.sort(Comparator.comparingLong(Entry::getAt));
 		List<Row> rows = new ArrayList<>();
 		int i = entries.size() - 1;
 		while (i >= 0)
@@ -68,13 +72,21 @@ public final class Timeline
 				i--;
 				continue;
 			}
-			// Gather every level of the day that sits next to this one, skipping nothing else.
+			// Gather every level of the day that sits next to this one in the chapter shown;
+			// anything else shown in between ends the run, so a pet is never folded away.
 			List<Entry> day = new ArrayList<>();
 			int j = i;
-			while (j >= 0 && entries.get(j).getKind() == Entry.Kind.LEVEL
-				&& Instant.ofEpochMilli(entries.get(j).at).atZone(zone).toLocalDate().equals(date))
+			while (j >= 0 && Instant.ofEpochMilli(entries.get(j).at).atZone(zone).toLocalDate().equals(date))
 			{
-				day.add(entries.get(j));
+				Entry next = entries.get(j);
+				if (next.getKind() == Entry.Kind.LEVEL)
+				{
+					day.add(next);
+				}
+				else if (next.in(chapter))
+				{
+					break;
+				}
 				j--;
 			}
 			i = j;

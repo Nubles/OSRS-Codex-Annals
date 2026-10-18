@@ -11,7 +11,11 @@ import java.awt.geom.Ellipse2D;
 import java.awt.geom.Path2D;
 import java.awt.image.BufferedImage;
 import java.time.LocalDate;
+import java.util.function.Consumer;
 import javax.swing.JComponent;
+import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
+import javax.swing.JPopupMenu;
 
 /**
  * One line of the annals: the day, a node on a gilt thread coloured by the kind of entry, and
@@ -41,13 +45,40 @@ class EntryRow extends JComponent
 		setToolTipText(Format.date(entry.getAt()) + ": " + entry.getTitle() + (detail == null ? "" : ", " + detail));
 	}
 
+	/**
+	 * Lets the player strike this line from the annals with a right click, after saying yes.
+	 *
+	 * @param strike what to do with the entry, or null to leave the row as it is
+	 */
+	void strikeWith(Consumer<Entry> strike)
+	{
+		if (strike == null || entry.getKind() == Entry.Kind.BEGIN)
+		{
+			return;
+		}
+		JPopupMenu menu = new JPopupMenu();
+		JMenuItem item = new JMenuItem("Strike from the annals");
+		item.addActionListener(e ->
+		{
+			int answer = JOptionPane.showConfirmDialog(this,
+				"Strike \"" + entry.getTitle() + "\" of " + Format.date(entry.getAt()) + " from your annals?\nThis cannot be undone.",
+				"Codex Annals", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+			if (answer == JOptionPane.YES_OPTION)
+			{
+				strike.accept(entry);
+			}
+		});
+		menu.add(item);
+		setComponentPopupMenu(menu);
+	}
+
 	/** The detail line, led by a drop's value so it survives when the line is cut short. */
 	static String detail(Entry e)
 	{
 		if (e.getValue() > 0 && e.getDetail() != null)
 		{
 			String detail = e.getDetail();
-			return Format.coins(e.getValue()) + ", " + Character.toLowerCase(detail.charAt(0)) + detail.substring(1);
+			return Format.coins(e.getValue()) + ", " + Format.lower(detail);
 		}
 		return e.getDetail();
 	}

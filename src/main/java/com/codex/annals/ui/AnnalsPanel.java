@@ -1,6 +1,7 @@
 package com.codex.annals.ui;
 
 import com.codex.annals.core.Annals;
+import com.codex.annals.core.Entry;
 import com.codex.annals.core.Recap;
 import com.codex.annals.core.Year;
 import java.awt.BorderLayout;
@@ -11,9 +12,10 @@ import java.awt.Graphics;
 import java.awt.image.BufferedImage;
 import java.time.LocalDate;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.function.Consumer;
+import java.util.function.IntConsumer;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
 import javax.swing.JScrollPane;
@@ -30,8 +32,8 @@ public class AnnalsPanel extends PluginPanel
 {
 	private static final String[] TABS = {"timeline", "year", "card"};
 	private static final int PAGE = 120;
-	/** The most years the chooser offers at once; the newest are kept. */
-	private static final int YEARS_SHOWN = 4;
+	/** Up to this many years sit side by side as tabs; beyond it the chooser steps from year to year. */
+	private static final int YEAR_TABS = 4;
 
 	private final ItemIcons items;
 	private final Icons icons;
@@ -49,8 +51,10 @@ public class AnnalsPanel extends PluginPanel
 	private ZoneId zone = ZoneId.systemDefault();
 	private String playerName;
 	private List<Integer> years = Collections.emptyList();
-	private Segmented yearChooser;
 	private int yearIndex;
+	private Consumer<Entry> strike;
+	/** The annals changed while the panel was out of sight; rebuild when it is opened. */
+	private boolean stale;
 	private int limit = PAGE;
 	private boolean showName = true;
 	private int tab;
@@ -116,37 +120,71 @@ public class AnnalsPanel extends PluginPanel
 		this.zone = zone;
 		this.playerName = playerName;
 		List<Integer> latest = annals == null ? Collections.emptyList() : Recap.years(annals);
-		if (latest.size() > YEARS_SHOWN)
-		{
-			latest = new ArrayList<>(latest.subList(0, YEARS_SHOWN));
-		}
 		if (!latest.equals(years))
 		{
 			Integer chosen = yearIndex < years.size() ? years.get(yearIndex) : null;
 			years = latest;
 			yearIndex = Math.max(0, chosen == null ? 0 : years.indexOf(chosen));
-			yearChooser = null;
-			if (years.size() > 1)
-			{
-				String[] labels = new String[years.size()];
-				for (int i = 0; i < labels.length; i++)
-				{
-					labels[i] = String.valueOf(years.get(i));
-				}
-				yearChooser = new Segmented(false, labels);
-				yearChooser.setSelected(yearIndex, false);
-				yearChooser.onChange(i ->
-				{
-					yearIndex = i;
-					rebuildYear();
-					if (tab == 2)
-					{
-						rebuildCard();
-					}
-				});
-			}
+		}
+		// Building every row costs real time; while the panel is out of sight, wait until it is opened.
+		if (!isShowing())
+		{
+			stale = true;
+			return;
 		}
 		rebuildAll();
+	}
+
+	@Override
+	public void onActivate()
+	{
+		if (stale)
+		{
+			rebuildAll();
+		}
+	}
+
+	/** Called on the Swing thread with an entry the player chose to strike from the annals. */
+	public void onStrike(Consumer<Entry> strike)
+	{
+		this.strike = strike;
+	}
+
+	/**
+	 * A fresh year chooser for a page, or null when only one year is kept. Each page gets its
+	 * own, since a Swing component can only sit in one place at a time.
+	 */
+	private JComponent yearChooser()
+	{
+		if (years.size() < 2)
+		{
+			return null;
+		}
+		IntConsumer choose = i ->
+		{
+			yearIndex = i;
+			if (tab == 2)
+			{
+				rebuildCard();
+			}
+			else
+			{
+				rebuildYear();
+			}
+		};
+		if (years.size() > YEAR_TABS)
+		{
+			return new YearStepper(years, yearIndex, choose);
+		}
+		String[] labels = new String[years.size()];
+		for (int i = 0; i < labels.length; i++)
+		{
+			labels[i] = String.valueOf(years.get(i));
+		}
+		Segmented chooser = new Segmented(false, labels);
+		chooser.setSelected(yearIndex, false);
+		chooser.onChange(choose);
+		return chooser;
 	}
 
 	public void setShowName(boolean showName)
@@ -176,6 +214,11 @@ public class AnnalsPanel extends PluginPanel
 			cardNote = null;
 			rebuildCard();
 		}
+		else if (index == 1)
+		{
+			// The chosen year may have changed on the card page.
+			rebuildYear();
+		}
 	}
 
 	/** Picks a chapter of the timeline, for previews and tests. */
@@ -186,6 +229,7 @@ public class AnnalsPanel extends PluginPanel
 
 	private void rebuildAll()
 	{
+		stale = false;
 		Year thisYear = annals == null ? null : annals.getYear(LocalDate.now(zone).getYear());
 		crest.update(playerName != null ? playerName : annals == null ? null : annals.getPlayer(),
 			annals == null ? 0 : annals.getBegunAt(),
@@ -206,7 +250,7 @@ public class AnnalsPanel extends PluginPanel
 		{
 			limit += PAGE;
 			rebuildTimeline();
-		}, items, icons, this::refreshLater));
+		}, items, icons, this::refreshLater, strike));
 	}
 
 	private Recap recap()
@@ -223,15 +267,16 @@ public class AnnalsPanel extends PluginPanel
 		Recap r = recap();
 		LocalDate today = LocalDate.now(zone);
 		int current = r != null && r.getYear() == today.getYear() ? today.getMonthValue() - 1 : -1;
-		replace(year, YearView.build(r, yearChooser, current, zone, items, icons, this::refreshLater));
+		replace(year, YearView.build(r, yearChooser(), current, zone, items, icons, this::refreshLater));
 	}
 
 	private void rebuildCard()
 	{
 		StackPanel stack = new StackPanel(8, 8);
-		if (yearChooser != null)
+		JComponent chooser = yearChooser();
+		if (chooser != null)
 		{
-			stack.add(yearChooser);
+			stack.add(chooser);
 		}
 		Recap r = recap();
 		if (r == null)

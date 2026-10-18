@@ -61,6 +61,8 @@ public class Entry
 	int level;
 	/** The level a level entry rose from. */
 	int from;
+	/** A pet that also filled a collection log slot, so the year counts it as one. */
+	boolean slot;
 
 	Entry()
 	{
@@ -128,6 +130,12 @@ public class Entry
 	public long getValue()
 	{
 		return value;
+	}
+
+	/** Whether this pet also filled a collection log slot. */
+	public boolean isSlot()
+	{
+		return slot;
 	}
 
 	/** How much the entry matters when only a few fit: its kind, then a drop's size. */

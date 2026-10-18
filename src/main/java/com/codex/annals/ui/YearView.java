@@ -26,7 +26,7 @@ final class YearView
 	 * @param years the year chooser, or null when only one year is kept
 	 * @param currentMonth the month still being lived when this is the current year, or -1
 	 */
-	static JComponent build(Recap r, Segmented years, int currentMonth, ZoneId zone, ItemIcons items, Icons icons, Runnable onLoaded)
+	static JComponent build(Recap r, JComponent years, int currentMonth, ZoneId zone, ItemIcons items, Icons icons, Runnable onLoaded)
 	{
 		StackPanel stack = new StackPanel(8, 8);
 		if (years != null)

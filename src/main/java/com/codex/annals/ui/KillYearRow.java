@@ -30,11 +30,11 @@ class KillYearRow extends JComponent
 	{
 		Graphics2D g = (Graphics2D) graphics.create();
 		Theme.smooth(g);
-		paint(g, line, share, 0, 0, getWidth());
+		paint(g, line, share, 0, 0, getWidth(), true);
 		g.dispose();
 	}
 
-	static void paint(Graphics2D g, Recap.KillYear line, double share, int x, int y, int w)
+	static void paint(Graphics2D g, Recap.KillYear line, double share, int x, int y, int w, boolean showCount)
 	{
 		g.setFont(Theme.body());
 		FontMetrics fm = g.getFontMetrics();
@@ -50,7 +50,7 @@ class KillYearRow extends JComponent
 		g.fill(mark);
 
 		String count = Format.number(line.getKills());
-		String kc = line.getKillCount() > 0 ? "KC " + Format.number(line.getKillCount()) : "";
+		String kc = showCount && line.getKillCount() > 0 ? "KC " + Format.number(line.getKillCount()) : "";
 		g.setFont(Theme.small());
 		FontMetrics small = g.getFontMetrics();
 		int kcw = kc.isEmpty() ? 0 : small.stringWidth(kc) + 8;

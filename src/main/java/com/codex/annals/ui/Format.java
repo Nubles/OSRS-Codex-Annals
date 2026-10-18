@@ -178,6 +178,16 @@ public final class Format
 		return String.format(Locale.ENGLISH, "%,d", hours) + (hours == 1 ? " hour" : " hours");
 	}
 
+	/** Text to follow a comma: its first letter lowered, unless it starts a name such as a boss's. */
+	public static String lower(String text)
+	{
+		if (text == null || text.length() < 2 || !Character.isUpperCase(text.charAt(0)) || Character.isUpperCase(text.charAt(1)))
+		{
+			return text;
+		}
+		return Character.toLowerCase(text.charAt(0)) + text.substring(1);
+	}
+
 	/** "1,412". */
 	public static String number(long n)
 	{

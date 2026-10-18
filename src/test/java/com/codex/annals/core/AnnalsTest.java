@@ -188,4 +188,95 @@ public class AnnalsTest
 		assertEquals(3, annals.getEntries().size());
 		assertEquals("Elder maul", Recap.of(annals, 2026, UTC).getBiggestDrop().getTitle());
 	}
+
+	@Test
+	public void aNewPetTakesItsNameFromTheCollectionLog()
+	{
+		long now = at(2026, 7, 4, 21);
+		Annals annals = begun(now, 80, 2_000_000L);
+		annals.record(ChatParser.entry("You have a funny feeling like you're being followed.", now, "Vorkath"), now, UTC);
+		Entry pet = annals.record(ChatParser.entry("New item added to your collection log: Vorki", now + 600, null), now + 600, UTC);
+		assertEquals(Entry.Kind.PET, pet.getKind());
+		assertEquals("Vorki", pet.getTitle());
+		assertTrue(pet.isSlot());
+		assertEquals(2, annals.getEntries().size());
+		Recap r = Recap.of(annals, 2026, UTC);
+		assertEquals(1, r.getPets());
+		assertEquals(1, r.getCollection());
+
+		// A slot a while later is a slot of its own, not the pet's.
+		Entry slot = annals.record(ChatParser.entry("New item added to your collection log: Draconic visage", now + 60_000, null), now + 60_000, UTC);
+		assertEquals(Entry.Kind.COLLECTION, slot.getKind());
+		assertEquals("Vorki", annals.getEntries().get(1).getTitle());
+	}
+
+	@Test
+	public void aPetWithoutALogLineIsNamedByItsFollower()
+	{
+		long now = at(2026, 7, 4, 21);
+		Annals annals = begun(now, 80, 2_000_000L);
+		annals.record(ChatParser.entry("You have a funny feeling like you're being followed.", now, null), now, UTC);
+		Entry pet = annals.namePet("Rock Golem", now + 1200);
+		assertEquals("Rock Golem", pet.getTitle());
+		// Named once; a later follower is not the pet.
+		assertNull(annals.namePet("Heron", now + 1800));
+	}
+
+	@Test
+	public void ignoresStatsTheGameHasNotSentYet()
+	{
+		long now = at(2026, 3, 12, 10);
+		Annals annals = begun(now, 98, 12_000_000L);
+		Map<String, Long> xp = new LinkedHashMap<>();
+		Map<String, Integer> levels = new LinkedHashMap<>();
+		xp.put("Slayer", 0L);
+		levels.put("Slayer", 1);
+		xp.put("Mining", 1_000_500L);
+		levels.put("Mining", 70);
+		annals.begin(now + 60_000, UTC, "Zezima", null, xp, levels, 100);
+		// The real reading arrives: no level, no 99, nothing written.
+		assertTrue(annals.stat("Slayer", 12_000_000L, 98, now + 61_000, UTC, true).isEmpty());
+		assertTrue(annals.stat("Slayer", 0L, 1, now + 62_000, UTC, true).isEmpty());
+		assertEquals(0L, annals.getYear(2026).gained("Slayer"));
+	}
+
+	@Test
+	public void experienceTakenAwayIsFollowedQuietly()
+	{
+		long now = at(2026, 3, 12, 10);
+		Annals annals = begun(now, 80, 2_000_000L);
+		assertTrue(annals.stat("Slayer", 1_900_000L, 79, now + 1000, UTC, true).isEmpty());
+		List<Entry> back = annals.stat("Slayer", 2_000_000L, 80, now + 2000, UTC, true);
+		assertEquals(1, back.size());
+		assertEquals("Slayer 80", back.get(0).getTitle());
+	}
+
+	@Test
+	public void strikesAnEntryButNeverTheOpening()
+	{
+		long now = at(2026, 5, 1, 10);
+		Annals annals = begun(now, 80, 2_000_000L);
+		Entry quest = annals.record(new Entry(Entry.Kind.QUEST, now + 5, "Cook's Assistant", "Quest complete"), now + 5, UTC);
+		assertTrue(annals.remove(quest.getAt(), quest.getKind(), quest.getTitle()));
+		assertEquals(1, annals.getEntries().size());
+		Entry begin = annals.getEntries().get(0);
+		assertTrue(!annals.remove(begin.getAt(), begin.getKind(), begin.getTitle()));
+	}
+
+	@Test
+	public void maxingIsTheHeadline()
+	{
+		long now = at(2026, 3, 12, 10);
+		Map<String, Long> xp = new LinkedHashMap<>();
+		Map<String, Integer> levels = new LinkedHashMap<>();
+		xp.put("Slayer", 13_000_000L);
+		levels.put("Slayer", 98);
+		xp.put("Mining", 13_100_000L);
+		levels.put("Mining", 99);
+		Annals annals = new Annals();
+		annals.begin(now, UTC, "Zezima", new Baseline(now, 197, 26_100_000L, 126, 300, 170, 170, Collections.singletonList("Mining")),
+			xp, levels, 126);
+		annals.stat("Slayer", 13_034_431L, 99, now + 1000, UTC, true);
+		assertEquals("The year of the max cape", Recap.of(annals, 2026, UTC).getHeadline());
+	}
 }

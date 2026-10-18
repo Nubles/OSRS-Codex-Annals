@@ -18,10 +18,14 @@ public final class ChatParser
 	private static final Pattern TASK = Pattern.compile(
 		"^Congratulations, you've completed an? (\\w+) combat task: (.+?)(?: \\(\\d+ points?\\))?\\.?$");
 	private static final Pattern CLUE = Pattern.compile("^You have completed ([\\d,]+) (\\w+) Treasure Trails?\\.?$");
+	/** The pet that comes out to follow; the one that goes to the backpack is the other line. */
+	public static final String PET_FOLLOWS = "You have a funny feeling like you're being followed";
 	private static final String[] PET_LINES = {
-		"You have a funny feeling like you're being followed",
+		PET_FOLLOWS,
 		"You feel something weird sneaking into your backpack",
 	};
+	/** What a pet is called until the game names it. */
+	public static final String UNNAMED_PET = "A pet followed you home";
 
 	/** A kill count the game announced. */
 	public static final class KillCount
@@ -57,9 +61,15 @@ public final class ChatParser
 		{
 			return null;
 		}
+		String name = m.group(1);
+		// Agility courses count their laps the same way; a lap is not a kill and would drown out every boss.
+		if (name.endsWith(" lap") || name.endsWith(" Lap"))
+		{
+			return null;
+		}
 		try
 		{
-			return new KillCount(m.group(1), Integer.parseInt(m.group(2).replace(",", "")));
+			return new KillCount(name, Integer.parseInt(m.group(2).replace(",", "")));
 		}
 		catch (NumberFormatException e)
 		{
@@ -78,8 +88,8 @@ public final class ChatParser
 		{
 			if (message.startsWith(line))
 			{
-				return new Entry(Entry.Kind.PET, now, "A pet followed you home",
-					recentKill == null ? "The rarest drop of all" : "While killing " + recentKill);
+				return new Entry(Entry.Kind.PET, now, UNNAMED_PET,
+					recentKill == null ? "The rarest drop of all" : "Pet from " + recentKill);
 			}
 		}
 		Matcher m = COLLECTION.matcher(message);
