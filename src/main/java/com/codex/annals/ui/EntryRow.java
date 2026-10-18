@@ -11,7 +11,11 @@ import java.awt.geom.Ellipse2D;
 import java.awt.geom.Path2D;
 import java.awt.image.BufferedImage;
 import java.time.LocalDate;
+import java.util.function.Consumer;
 import javax.swing.JComponent;
+import javax.swing.JMenuItem;
+import javax.swing.JOptionPane;
+import javax.swing.JPopupMenu;
 
 /**
  * One line of the annals: the day, a node on a gilt thread coloured by the kind of entry, and
@@ -37,20 +41,94 @@ class EntryRow extends JComponent
 		this.last = last;
 		setOpaque(false);
 		setPreferredSize(new Dimension(10, HEIGHT));
-		String detail = detail(entry);
-		setToolTipText(Format.date(entry.getAt()) + ": " + entry.getTitle() + (detail == null ? "" : ", " + detail));
+		String full = entry.getDetail();
+		String worth = entry.getValue() > 0 ? ", worth " + Format.coins(entry.getValue()) : "";
+		setToolTipText(Format.date(entry.getAt()) + ": " + entry.getTitle() + (full == null ? "" : ", " + Format.lower(full)) + worth);
 	}
 
-	/** The detail line, led by a drop's value so it survives when the line is cut short. */
+	/**
+	 * Lets the player strike this line from the annals with a right click, after saying yes.
+	 *
+	 * @param strike what to do with the entry, or null to leave the row as it is
+	 */
+	void strikeWith(Consumer<Entry> strike)
+	{
+		if (strike == null || entry.getKind() == Entry.Kind.BEGIN)
+		{
+			return;
+		}
+		JPopupMenu menu = new JPopupMenu();
+		JMenuItem item = new JMenuItem("Strike from the annals");
+		item.addActionListener(e ->
+		{
+			int answer = JOptionPane.showConfirmDialog(this,
+				"Strike \"" + entry.getTitle() + "\" of " + Format.date(entry.getAt()) + " from your annals?\nThis cannot be undone.",
+				"Codex Annals", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+			if (answer == JOptionPane.YES_OPTION)
+			{
+				strike.accept(entry);
+			}
+		});
+		menu.add(item);
+		setComponentPopupMenu(menu);
+	}
+
+	/** What a drop or slot came from, as its stored detail names it, or null. */
+	private static String source(String detail)
+	{
+		for (String lead : new String[]{"New log slot from ", "From "})
+		{
+			if (detail.startsWith(lead))
+			{
+				return detail.substring(lead.length());
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * The detail line as the panel and the card show it: short enough for the side panel, led by
+	 * what matters (a drop's value, how far a level is from 99) so it survives being cut short.
+	 */
 	static String detail(Entry e)
 	{
-		if (e.getValue() > 0 && e.getDetail() != null)
+		String detail = e.getDetail();
+		if (detail == null)
 		{
-			String detail = e.getDetail();
-			return Format.coins(e.getValue()) + ", " + Character.toLowerCase(detail.charAt(0)) + detail.substring(1);
+			return null;
 		}
-		return e.getDetail();
+		if (e.getValue() > 0)
+		{
+			String from = source(detail);
+			String coins = Format.coins(e.getValue());
+			if (e.getKind() == Entry.Kind.COLLECTION)
+			{
+				return from == null ? "New slot" + DOT + coins : "New slot" + DOT + coins + DOT + from;
+			}
+			return from == null ? coins + ", " + Format.lower(detail) : coins + DOT + from;
+		}
+		if (e.getKind() == Entry.Kind.LEVEL && "Level up".equals(detail))
+		{
+			int level = e.getLevel();
+			int rose = e.getFrom() > 0 ? level - e.getFrom() : 1;
+			if (rose > 1)
+			{
+				return rose + " levels at once";
+			}
+			if (level == 92)
+			{
+				return "Halfway to 99";
+			}
+			if (level > 0 && level < 99)
+			{
+				return Format.plural(99 - level, "level", "levels") + " to 99";
+			}
+		}
+		return detail;
 	}
+
+	/** Separates the parts of a short detail line. */
+	static final String DOT = " \u00b7 ";
 
 	@Override
 	protected void paintComponent(Graphics graphics)

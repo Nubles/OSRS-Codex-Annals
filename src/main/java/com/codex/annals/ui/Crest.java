@@ -19,7 +19,7 @@ import javax.swing.border.EmptyBorder;
 public class Crest extends JPanel
 {
 	private final JLabel title = Ui.label("Codex Annals", Theme.title(), Theme.GOLD_BRIGHT);
-	private final JLabel subtitle = Ui.label("Log in to begin your annals", Theme.small(), Theme.TEXT_MUTED);
+	private final JLabel subtitle = Ui.label("Log in to open the annals", Theme.small(), Theme.TEXT_MUTED);
 	private final Ledger entries = new Ledger("Entries");
 	private final Ledger days = new Ledger("Days this year");
 	private final Ledger hours = new Ledger("Hours this year");
@@ -62,7 +62,7 @@ public class Crest extends JPanel
 		title.setText(player != null ? player : "Codex Annals");
 		if (begunAt <= 0)
 		{
-			subtitle.setText(player == null ? "Log in to begin your annals" : "Opening the annals...");
+			subtitle.setText(player == null ? "Log in to open the annals" : "Opening the annals...");
 			entries.set("-");
 			days.set("-");
 			hours.set("-");

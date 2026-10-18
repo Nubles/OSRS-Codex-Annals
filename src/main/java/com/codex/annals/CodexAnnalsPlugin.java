@@ -24,6 +24,7 @@ import java.util.Deque;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import javax.imageio.ImageIO;
 import javax.inject.Inject;
@@ -49,6 +50,7 @@ import net.runelite.client.chat.ChatMessageManager;
 import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
+import net.runelite.client.events.ClientShutdown;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.events.NpcLootReceived;
 import net.runelite.client.events.RuneScapeProfileChanged;
@@ -63,6 +65,7 @@ import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.util.AsyncBufferedImage;
 import net.runelite.client.util.Filepath;
 import net.runelite.client.util.Text;
+import net.runelite.http.api.item.ItemPrice;
 import net.runelite.http.api.loottracker.LootRecordType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -80,8 +83,12 @@ public class CodexAnnalsPlugin extends Plugin
 	private static final long TICK_MS = 600;
 	/** Ticks between panel refreshes when only the clock moved, about half a minute. */
 	private static final int REFRESH_TICKS = 50;
-	/** Ticks between saves while something changed, about a minute. */
+	/** Ticks between saves once something was written down, about a minute. */
 	private static final int SAVE_TICKS = 100;
+	/** Ticks between saves when only the clock moved, about five minutes; the annals are a large value to write. */
+	private static final int CLOCK_SAVE_TICKS = 500;
+	/** Ticks a new pet has to come out as a follower and give its name. */
+	private static final int PET_TICKS = 5;
 	/** How long a loot or kill count stays fresh enough to name what a message was about. */
 	private static final long RECENT_MS = 10_000;
 
@@ -124,7 +131,10 @@ public class CodexAnnalsPlugin extends Plugin
 	private boolean pendingBegin;
 	private boolean dirty;
 	private boolean unsaved;
+	/** Something more than the clock changed since the last save. */
+	private boolean entriesChanged;
 	private int ticks;
+	private int petTicks;
 	private String recentKill;
 	private long recentKillAt;
 	private final Deque<RecentItem> recentLoot = new ArrayDeque<>();
@@ -185,6 +195,7 @@ public class CodexAnnalsPlugin extends Plugin
 			}
 		});
 		panel.setShowName(config.nameOnCard());
+		panel.onStrike(this::strike);
 		navButton = NavigationButton.builder()
 			.tooltip("Codex Annals")
 			.icon(Sigil.icon(16))
@@ -213,6 +224,30 @@ public class CodexAnnalsPlugin extends Plugin
 			pendingBegin = false;
 		});
 		panel = null;
+	}
+
+	@Subscribe
+	public void onClientShutdown(ClientShutdown event)
+	{
+		// Up to five minutes of play time would otherwise be lost when the client is closed while logged in.
+		// ConfigManager writes its changes to disk in this same event, before this runs on the client
+		// thread, so a save made here has to be sent on by hand or it is never written.
+		CompletableFuture<Void> done = new CompletableFuture<>();
+		clientThread.invokeLater(() ->
+		{
+			try
+			{
+				if (save())
+				{
+					configManager.sendConfig();
+				}
+			}
+			finally
+			{
+				done.complete(null);
+			}
+		});
+		event.waitFor(done);
 	}
 
 	@Subscribe
@@ -251,7 +286,8 @@ public class CodexAnnalsPlugin extends Plugin
 	@Subscribe
 	public void onConfigChanged(ConfigChanged event)
 	{
-		if (!CodexAnnalsConfig.GROUP.equals(event.getGroup()))
+		// The annals themselves are saved in this group too; only the card's name setting concerns the panel.
+		if (!CodexAnnalsConfig.GROUP.equals(event.getGroup()) || !"nameOnCard".equals(event.getKey()))
 		{
 			return;
 		}
@@ -281,9 +317,19 @@ public class CodexAnnalsPlugin extends Plugin
 		{
 			written(annals.combat(player.getCombatLevel(), now));
 		}
+		if (petTicks > 0)
+		{
+			petTicks--;
+			NPC follower = client.getFollower();
+			if (follower != null && follower.getName() != null)
+			{
+				written(annals.namePet(Text.removeTags(follower.getName()), now));
+				petTicks = 0;
+			}
+		}
 		unsaved = true;
 		ticks++;
-		if (ticks % SAVE_TICKS == 0)
+		if (ticks % SAVE_TICKS == 0 && (entriesChanged || ticks % CLOCK_SAVE_TICKS == 0))
 		{
 			save();
 		}
@@ -437,6 +483,10 @@ public class CodexAnnalsPlugin extends Plugin
 		{
 			return;
 		}
+		if (entry.getKind() == Entry.Kind.PET && message.startsWith(ChatParser.PET_FOLLOWS))
+		{
+			petTicks = PET_TICKS;
+		}
 		Entry kept = annals.record(entry, now, zone);
 		if (kept != null && kept.getKind() == Entry.Kind.COLLECTION)
 		{
@@ -445,6 +495,18 @@ public class CodexAnnalsPlugin extends Plugin
 				if (now - item.at <= RECENT_MS && item.name.equalsIgnoreCase(kept.getTitle()))
 				{
 					annals.attachItem(item.name, item.id, now - RECENT_MS);
+				}
+			}
+			if (kept.getItemId() == 0)
+			{
+				// No loot to take the picture from, as with a raid's chest opened later: find it by name.
+				for (ItemPrice price : itemManager.search(kept.getTitle()))
+				{
+					if (price.getName().equalsIgnoreCase(kept.getTitle()))
+					{
+						annals.attachItem(kept.getTitle(), price.getId(), now - RECENT_MS);
+						break;
+					}
 				}
 			}
 		}
@@ -468,6 +530,7 @@ public class CodexAnnalsPlugin extends Plugin
 		}
 		dirty = true;
 		unsaved = true;
+		entriesChanged = true;
 		if (!config.chatLine())
 		{
 			return;
@@ -504,6 +567,7 @@ public class CodexAnnalsPlugin extends Plugin
 		profile = configManager.getRSProfileKey();
 		annals = new Annals();
 		recentLoot.clear();
+		petTicks = 0;
 		if (profile == null)
 		{
 			return;
@@ -526,14 +590,17 @@ public class CodexAnnalsPlugin extends Plugin
 		}
 	}
 
-	private void save()
+	/** @return whether anything was written */
+	private boolean save()
 	{
 		if (!unsaved || profile == null || !annals.isBegun())
 		{
-			return;
+			return false;
 		}
 		unsaved = false;
+		entriesChanged = false;
 		configManager.setConfiguration(CodexAnnalsConfig.GROUP, profile, ANNALS_KEY, gson.toJson(annals));
+		return true;
 	}
 
 	/** Sends the panel a copy of the annals, so Swing never reads what the client thread is writing. */
@@ -549,6 +616,25 @@ public class CodexAnnalsPlugin extends Plugin
 			ZoneId zone = ZoneId.systemDefault();
 			SwingUtilities.invokeLater(() -> target.update(copy.isBegun() ? copy : null, zone, name));
 		}
+	}
+
+	/** Strikes an entry the player chose from the panel; runs on the Swing thread. */
+	private void strike(Entry entry)
+	{
+		long at = entry.getAt();
+		Entry.Kind kind = entry.getKind();
+		String title = entry.getTitle();
+		clientThread.invokeLater(() ->
+		{
+			if (annals.remove(at, kind, title))
+			{
+				dirty = true;
+				unsaved = true;
+				entriesChanged = true;
+				save();
+				publish();
+			}
+		});
 	}
 
 	/** Asks where to save the card with RuneLite's own file chooser, then writes it there; runs on the Swing thread. */

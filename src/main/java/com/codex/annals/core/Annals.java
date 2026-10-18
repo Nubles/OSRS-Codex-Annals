@@ -24,6 +24,8 @@ public class Annals
 	private static final long MAX_XP = 200_000_000L;
 	/** How close a drop and its collection log message must be to count as one. */
 	private static final long MERGE_MS = 30_000;
+	/** The detail of the entry for the highest total level, the day the account maxed. */
+	static final String MAX_TOTAL_DETAIL = "The highest total there is";
 
 	long begunAt;
 	String player;
@@ -94,6 +96,10 @@ public class Annals
 			entries = new ArrayList<>();
 		}
 		entries.removeIf(e -> e == null);
+		for (Entry e : entries)
+		{
+			e.compact();
+		}
 		if (years == null)
 		{
 			years = new ArrayList<>();
@@ -129,19 +135,29 @@ public class Annals
 	{
 		List<Entry> written = new ArrayList<>();
 		this.player = player;
-		xp.putAll(xpNow);
-		levels.putAll(levelsNow);
 		combat = combatNow;
 		Year year = year(now, zone);
 		for (Map.Entry<String, Long> e : xpNow.entrySet())
 		{
-			year.startXp.putIfAbsent(e.getKey(), e.getValue());
-			year.endXp.put(e.getKey(), e.getValue());
-		}
-		for (Map.Entry<String, Integer> e : levelsNow.entrySet())
-		{
-			year.startLevel.putIfAbsent(e.getKey(), e.getValue());
-			year.endLevel.put(e.getKey(), e.getValue());
+			String skill = e.getKey();
+			long read = e.getValue();
+			Long known = xp.get(skill);
+			if (read <= 0 && known != null && known > 0)
+			{
+				// A skill the game has not sent yet reads as nothing; taking it in would make its real
+				// value, when it arrives, look like a lifetime of levels gained in one tick.
+				continue;
+			}
+			Integer level = levelsNow.get(skill);
+			xp.put(skill, read);
+			year.startXp.putIfAbsent(skill, read);
+			year.endXp.put(skill, read);
+			if (level != null)
+			{
+				levels.put(skill, level);
+				year.startLevel.putIfAbsent(skill, level);
+				year.endLevel.put(skill, level);
+			}
 		}
 		if (!isBegun())
 		{
@@ -165,9 +181,14 @@ public class Annals
 		{
 			return written;
 		}
-		Year year = year(now, zone);
 		Long xpBefore = xp.get(skill);
 		Integer levelBefore = levels.get(skill);
+		if (xpNow <= 0 && xpBefore != null && xpBefore > 0)
+		{
+			// Not a real reading: experience is never lost outside of a world that takes it, and never all of it.
+			return written;
+		}
+		Year year = year(now, zone);
 		year.startXp.putIfAbsent(skill, xpBefore == null ? xpNow : xpBefore);
 		year.startLevel.putIfAbsent(skill, levelBefore == null ? levelNow : levelBefore);
 		year.endXp.put(skill, xpNow);
@@ -177,6 +198,11 @@ public class Annals
 		if (xpBefore == null || levelBefore == null)
 		{
 			// A skill seen for the first time, such as one added to the game: nothing to compare with.
+			return written;
+		}
+		if (xpNow < xpBefore)
+		{
+			// Experience taken away, as a Deadman world does on death: follow it quietly, it is no milestone.
 			return written;
 		}
 
@@ -204,7 +230,7 @@ public class Annals
 			int maxTotal = levels.size() * 99;
 			if (totalNow >= maxTotal && totalBefore < maxTotal)
 			{
-				written.add(add(new Entry(Entry.Kind.TOTAL, now, "Total level " + number(totalNow), "The highest total there is")));
+				written.add(add(new Entry(Entry.Kind.TOTAL, now, "Total level " + number(totalNow), MAX_TOTAL_DETAIL)));
 			}
 			else if (totalNow / 100 > totalBefore / 100 && totalNow >= 500)
 			{
@@ -300,8 +326,7 @@ public class Annals
 		Entry slot = recent(Entry.Kind.COLLECTION, item, now);
 		if (slot != null)
 		{
-			slot.itemId = itemId;
-			slot.value = value;
+			slot.item(itemId, value);
 			slot.detail = source == null ? "New collection log slot" : "New log slot from " + source;
 			return slot;
 		}
@@ -336,6 +361,14 @@ public class Annals
 		}
 		if (entry.getKind() == Entry.Kind.COLLECTION)
 		{
+			Entry pet = unslottedPet(now);
+			if (pet != null)
+			{
+				// The game names a new pet in the collection log in the same breath as it arrives.
+				pet.title = entry.getTitle();
+				pet.slot = Boolean.TRUE;
+				return pet;
+			}
 			Entry drop = recent(Entry.Kind.DROP, entry.getTitle(), now);
 			if (drop != null)
 			{
@@ -347,12 +380,87 @@ public class Annals
 		if (entry.getKind() == Entry.Kind.CLUE)
 		{
 			year(now, zone).clues++;
-			if (!ChatParser.clueMilestone(entry.level))
+			if (!ChatParser.clueMilestone(entry.getLevel()))
 			{
 				return null;
 			}
 		}
 		return add(entry);
+	}
+
+	/** How soon after a pet its collection log line must come to be about that pet. */
+	static final long PET_SLOT_MS = 1_800;
+	/** How long after a pet arrives its follower may still name it. */
+	static final long PET_NAME_MS = 10_000;
+
+	/** A pet written a moment ago whose collection log line has not come yet, or null. */
+	private Entry unslottedPet(long now)
+	{
+		for (int i = entries.size() - 1; i >= 0; i--)
+		{
+			Entry e = entries.get(i);
+			if (now - e.at > PET_SLOT_MS)
+			{
+				return null;
+			}
+			if (e.getKind() == Entry.Kind.PET && !e.isSlot())
+			{
+				return e;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Names a pet that has just arrived after the follower that came out with it, when the game
+	 * did not name it in the collection log.
+	 *
+	 * @return the pet named, or null
+	 */
+	public Entry namePet(String name, long now)
+	{
+		if (name == null || name.isEmpty())
+		{
+			return null;
+		}
+		for (int i = entries.size() - 1; i >= 0; i--)
+		{
+			Entry e = entries.get(i);
+			if (now - e.at > PET_NAME_MS)
+			{
+				return null;
+			}
+			if (e.getKind() == Entry.Kind.PET)
+			{
+				if (!ChatParser.UNNAMED_PET.equals(e.getTitle()))
+				{
+					return null;
+				}
+				e.title = name;
+				return e;
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * Strikes one entry from the annals, for the rare line that should not be there. The prologue
+	 * stays; the year's play time and kill counts are kept, as they were not written by the entry.
+	 *
+	 * @return whether an entry was struck
+	 */
+	public boolean remove(long at, Entry.Kind kind, String title)
+	{
+		for (int i = entries.size() - 1; i >= 0; i--)
+		{
+			Entry e = entries.get(i);
+			if (e.at == at && e.getKind() == kind && e.getTitle().equals(title) && kind != Entry.Kind.BEGIN)
+			{
+				entries.remove(i);
+				return true;
+			}
+		}
+		return false;
 	}
 
 	/**
@@ -368,7 +476,7 @@ public class Annals
 			{
 				break;
 			}
-			if (e.itemId == 0 && e.getTitle().equalsIgnoreCase(name))
+			if (e.getItemId() == 0 && e.getTitle().equalsIgnoreCase(name))
 			{
 				e.itemId = itemId;
 			}

@@ -25,6 +25,15 @@ public class ChatParserTest
 	}
 
 	@Test
+	public void agilityLapsAreNotKills()
+	{
+		assertNull(ChatParser.killCount("Your Ardougne Rooftop lap count is: 512."));
+		assertNull(ChatParser.killCount("Your Prifddinas Agility Course lap count is: 1,024."));
+		assertEquals("Gauntlet", ChatParser.killCount("Your Gauntlet completion count is: 12.").getName());
+		assertEquals("Wintertodt", ChatParser.killCount("Your subdued Wintertodt count is: 300.").getName());
+	}
+
+	@Test
 	public void readsEntries()
 	{
 		Entry e = ChatParser.entry("New item added to your collection log: Draconic visage", 1, null);
@@ -33,7 +42,7 @@ public class ChatParserTest
 
 		e = ChatParser.entry("You have a funny feeling like you're being followed.", 1, "Vorkath");
 		assertEquals(Entry.Kind.PET, e.getKind());
-		assertEquals("While killing Vorkath", e.getDetail());
+		assertEquals("Pet from Vorkath", e.getDetail());
 
 		e = ChatParser.entry("Congratulations, you've completed a quest: Dragon Slayer II", 1, null);
 		assertEquals(Entry.Kind.QUEST, e.getKind());

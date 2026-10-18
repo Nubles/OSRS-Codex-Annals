@@ -158,7 +158,7 @@ public final class YearCard
 
 		header(g, "Months", r.busiestMonth() >= 0 ? "busiest " + Format.monthName(r.busiestMonth()) : null, x, y, w);
 		y += 24;
-		MonthStrip.paint(g, r.getMonthDays(), -1, -1, x, y, w, MonthStrip.HEIGHT);
+		MonthStrip.paint(g, r.getMonthDays(), -1, -1, r.getFirstMonth(), x, y, w, MonthStrip.HEIGHT);
 		y += MonthStrip.HEIGHT + 10;
 
 		List<Recap.SkillYear> skillLines = r.getSkills();
@@ -188,7 +188,8 @@ public final class YearCard
 			int most = bosses.get(0).getKills();
 			for (int i = 0; i < bosses.size() && i < BOSSES; i++)
 			{
-				KillYearRow.paint(g, bosses.get(i), bosses.get(i).getKills() / (double) most, bx, by, colW);
+				// Side by side there is no room for the game's count as well; the name matters more.
+				KillYearRow.paint(g, bosses.get(i), bosses.get(i).getKills() / (double) most, bx, by, colW, !twoColumns);
 				by += 30;
 			}
 			right = by;
@@ -223,7 +224,7 @@ public final class YearCard
 				Ui.shadowed(g, Ui.clip(e.getTitle(), fm, edge - tx), tx, y + fm.getAscent() - 2, Theme.mix(Theme.TEXT, color, 0.3));
 				g.setFont(Theme.small());
 				String detail = EntryRow.detail(e);
-				String line = detail == null ? date : date + ", " + detail;
+				String line = detail == null ? date : date + EntryRow.DOT + detail;
 				g.setColor(Theme.TEXT_MUTED);
 				g.drawString(Ui.clip(line, small, edge - tx), tx, y + fm.getAscent() + small.getAscent());
 				y += 32;
@@ -245,16 +246,31 @@ public final class YearCard
 	/** A row of small medallions for the year's quests, diaries, log slots, pets and clues. */
 	private static int tallies(Graphics2D g, Recap r, int x, int y, int w)
 	{
-		String[][] items = {
-			{Format.number(r.getQuests()), r.getQuests() == 1 ? "quest" : "quests"},
-			{Format.number(r.getDiaries()), r.getDiaries() == 1 ? "diary" : "diaries"},
-			{Format.number(r.getCollection()), "log slots"},
-			{Format.number(r.getPets()), r.getPets() == 1 ? "pet" : "pets"},
-			{Format.number(r.getClues()), "clues"},
-		};
-		Color[] colors = {Theme.FEAT, Theme.FEAT, Theme.TEAL, Theme.VIOLET, Theme.GOLD};
+		int[] counts = {r.getQuests(), r.getDiaries(), r.getCollection(), r.getPets(), r.getClues()};
+		String[] ones = {"quest", "diary", "log slot", "pet", "clue"};
+		String[] many = {"quests", "diaries", "log slots", "pets", "clues"};
+		Color[] all = {Theme.FEAT, Theme.FEAT, Theme.TEAL, Theme.VIOLET, Theme.GOLD};
+		// A row of noughts says nothing on a card meant to be shared; only what the year holds is shown.
+		List<String[]> kept = new ArrayList<>();
+		List<Color> keptColors = new ArrayList<>();
+		for (int i = 0; i < counts.length; i++)
+		{
+			if (counts[i] > 0)
+			{
+				kept.add(new String[]{Format.number(counts[i]), counts[i] == 1 ? ones[i] : many[i]});
+				keptColors.add(all[i]);
+			}
+		}
+		if (kept.isEmpty())
+		{
+			return y - 10;
+		}
+		String[][] items = kept.toArray(new String[0][]);
+		Color[] colors = keptColors.toArray(new Color[0]);
 		int gap = 4;
-		float cell = (w - gap * (items.length - 1)) / (float) items.length;
+		// Medallions keep the size five would have, centred, so one alone does not stretch across the page.
+		float cell = (w - gap * 4) / 5f;
+		x += Math.round((w - (cell * items.length + gap * (items.length - 1))) / 2);
 		int h = 34;
 		g.setFont(Theme.small());
 		FontMetrics small = g.getFontMetrics();

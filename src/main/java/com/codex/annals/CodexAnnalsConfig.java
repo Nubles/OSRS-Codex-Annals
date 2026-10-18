@@ -4,6 +4,7 @@ import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
 import net.runelite.client.config.ConfigSection;
+import net.runelite.client.config.Range;
 
 @ConfigGroup(CodexAnnalsConfig.GROUP)
 public interface CodexAnnalsConfig extends Config
@@ -39,10 +40,11 @@ public interface CodexAnnalsConfig extends Config
 	@ConfigItem(
 		keyName = "notableDrop",
 		name = "Notable drop value",
-		description = "A single drop worth at least this many coins is written into the annals",
+		description = "A single drop worth at least this many coins, at the Grand Exchange price, is written into the annals",
 		position = 1,
 		section = annals
 	)
+	@Range(min = 10_000)
 	default int notableDrop()
 	{
 		return 1_000_000;

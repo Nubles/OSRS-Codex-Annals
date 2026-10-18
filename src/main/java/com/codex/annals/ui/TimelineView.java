@@ -11,6 +11,7 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
 import java.util.List;
+import java.util.function.Consumer;
 import javax.swing.BoxLayout;
 import javax.swing.JComponent;
 import javax.swing.JPanel;
@@ -32,7 +33,7 @@ final class TimelineView
 	 * @param more called to show more rows
 	 */
 	static JComponent build(Annals annals, ZoneId zone, Segmented chapters, int limit, Runnable more,
-		ItemIcons items, Icons icons, Runnable onLoaded)
+		ItemIcons items, Icons icons, Runnable onLoaded, Consumer<Entry> strike)
 	{
 		StackPanel stack = new StackPanel(6, 8);
 		stack.add(chapters);
@@ -47,7 +48,11 @@ final class TimelineView
 		List<Timeline.Row> rows = Timeline.rows(annals.getEntries(), chapter, zone);
 		if (rows.isEmpty())
 		{
-			stack.add(Views.note("Nothing here yet", "Entries of this kind are written down as they happen. Keep playing and this chapter fills."));
+			String text = chapter == Entry.Chapter.LOOT
+				? "Pets, notable drops and clue milestones are written down as they happen. New collection log slots need the game's "
+				+ "own chat line: turn on Collection log, New addition notification in the game's settings."
+				: "Entries of this kind are written down as they happen. Keep playing and this chapter fills.";
+			stack.add(Views.note("Nothing here yet", text));
 			return stack;
 		}
 
@@ -75,6 +80,10 @@ final class TimelineView
 			{
 				Timeline.Row row = rows.get(k);
 				EntryRow line = new EntryRow(row.getEntry(), row.getDate(), Views.icon(row.getEntry(), items, icons, onLoaded), k == i, k == stop - 1);
+				if (row.getFolded() == 0)
+				{
+					line.strikeWith(strike);
+				}
 				line.setAlignmentX(JComponent.LEFT_ALIGNMENT);
 				run.add(line);
 			}

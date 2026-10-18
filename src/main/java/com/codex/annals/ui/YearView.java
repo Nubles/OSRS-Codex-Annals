@@ -26,7 +26,7 @@ final class YearView
 	 * @param years the year chooser, or null when only one year is kept
 	 * @param currentMonth the month still being lived when this is the current year, or -1
 	 */
-	static JComponent build(Recap r, Segmented years, int currentMonth, ZoneId zone, ItemIcons items, Icons icons, Runnable onLoaded)
+	static JComponent build(Recap r, JComponent years, int currentMonth, ZoneId zone, ItemIcons items, Icons icons, Runnable onLoaded)
 	{
 		StackPanel stack = new StackPanel(8, 8);
 		if (years != null)
@@ -62,7 +62,7 @@ final class YearView
 
 		int busiest = r.busiestMonth();
 		stack.add(new SectionHeader("Months", busiest >= 0 ? "busiest " + Format.monthName(busiest) : null));
-		stack.add(new MonthStrip(r.getMonthDays(), r.getMonthEntries(), currentMonth));
+		stack.add(new MonthStrip(r.getMonthDays(), r.getMonthEntries(), currentMonth, r.getFirstMonth()));
 
 		List<Recap.SkillYear> skills = r.getSkills();
 		if (!skills.isEmpty())

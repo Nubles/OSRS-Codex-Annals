@@ -30,4 +30,30 @@ public class TimelineTest
 		List<Timeline.Row> feats = Timeline.rows(annals.getEntries(), Entry.Chapter.FEATS, AnnalsTest.UTC);
 		assertEquals(1, feats.size());
 	}
+
+	@Test
+	public void skillsChapterFoldsAcrossWhatItHides()
+	{
+		long now = AnnalsTest.at(2026, 3, 12, 10);
+		Annals annals = AnnalsTest.begun(now, 60, 300_000L);
+		annals.stat("Slayer", 340_000L, 61, now + 1000, AnnalsTest.UTC, true);
+		annals.record(new Entry(Entry.Kind.QUEST, now + 2000, "Dragon Slayer II", "Quest complete"), now, AnnalsTest.UTC);
+		annals.stat("Slayer", 380_000L, 62, now + 3000, AnnalsTest.UTC, true);
+		List<Timeline.Row> skills = Timeline.rows(annals.getEntries(), Entry.Chapter.SKILLS, AnnalsTest.UTC);
+		assertEquals(1, skills.size());
+		assertEquals("Slayer 60 to 62", skills.get(0).getEntry().getTitle());
+		// Everything shown: the quest stands between the two levels.
+		assertEquals(4, Timeline.rows(annals.getEntries(), Entry.Chapter.ALL, AnnalsTest.UTC).size());
+	}
+
+	@Test
+	public void goesByTheClockNotTheOrderWritten()
+	{
+		long now = AnnalsTest.at(2026, 3, 12, 10);
+		Annals annals = AnnalsTest.begun(now, 60, 300_000L);
+		annals.record(new Entry(Entry.Kind.QUEST, now + 50_000, "Later", "Quest complete"), now, AnnalsTest.UTC);
+		annals.record(new Entry(Entry.Kind.QUEST, now + 10_000, "Earlier", "Quest complete"), now, AnnalsTest.UTC);
+		List<Timeline.Row> rows = Timeline.rows(annals.getEntries(), Entry.Chapter.FEATS, AnnalsTest.UTC);
+		assertEquals("Later", rows.get(0).getEntry().getTitle());
+	}
 }
