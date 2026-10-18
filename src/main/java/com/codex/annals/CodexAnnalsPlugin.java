@@ -230,12 +230,17 @@ public class CodexAnnalsPlugin extends Plugin
 	public void onClientShutdown(ClientShutdown event)
 	{
 		// Up to five minutes of play time would otherwise be lost when the client is closed while logged in.
+		// ConfigManager writes its changes to disk in this same event, before this runs on the client
+		// thread, so a save made here has to be sent on by hand or it is never written.
 		CompletableFuture<Void> done = new CompletableFuture<>();
 		clientThread.invokeLater(() ->
 		{
 			try
 			{
-				save();
+				if (save())
+				{
+					configManager.sendConfig();
+				}
 			}
 			finally
 			{
@@ -585,15 +590,17 @@ public class CodexAnnalsPlugin extends Plugin
 		}
 	}
 
-	private void save()
+	/** @return whether anything was written */
+	private boolean save()
 	{
 		if (!unsaved || profile == null || !annals.isBegun())
 		{
-			return;
+			return false;
 		}
 		unsaved = false;
 		entriesChanged = false;
 		configManager.setConfiguration(CodexAnnalsConfig.GROUP, profile, ANNALS_KEY, gson.toJson(annals));
+		return true;
 	}
 
 	/** Sends the panel a copy of the annals, so Swing never reads what the client thread is writing. */
