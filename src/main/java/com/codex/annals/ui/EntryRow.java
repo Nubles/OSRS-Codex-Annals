@@ -41,8 +41,9 @@ class EntryRow extends JComponent
 		this.last = last;
 		setOpaque(false);
 		setPreferredSize(new Dimension(10, HEIGHT));
-		String detail = detail(entry);
-		setToolTipText(Format.date(entry.getAt()) + ": " + entry.getTitle() + (detail == null ? "" : ", " + detail));
+		String full = entry.getDetail();
+		String worth = entry.getValue() > 0 ? ", worth " + Format.coins(entry.getValue()) : "";
+		setToolTipText(Format.date(entry.getAt()) + ": " + entry.getTitle() + (full == null ? "" : ", " + Format.lower(full)) + worth);
 	}
 
 	/**
@@ -72,16 +73,62 @@ class EntryRow extends JComponent
 		setComponentPopupMenu(menu);
 	}
 
-	/** The detail line, led by a drop's value so it survives when the line is cut short. */
+	/** What a drop or slot came from, as its stored detail names it, or null. */
+	private static String source(String detail)
+	{
+		for (String lead : new String[]{"New log slot from ", "From "})
+		{
+			if (detail.startsWith(lead))
+			{
+				return detail.substring(lead.length());
+			}
+		}
+		return null;
+	}
+
+	/**
+	 * The detail line as the panel and the card show it: short enough for the side panel, led by
+	 * what matters (a drop's value, how far a level is from 99) so it survives being cut short.
+	 */
 	static String detail(Entry e)
 	{
-		if (e.getValue() > 0 && e.getDetail() != null)
+		String detail = e.getDetail();
+		if (detail == null)
 		{
-			String detail = e.getDetail();
-			return Format.coins(e.getValue()) + ", " + Format.lower(detail);
+			return null;
 		}
-		return e.getDetail();
+		if (e.getValue() > 0)
+		{
+			String from = source(detail);
+			String coins = Format.coins(e.getValue());
+			if (e.getKind() == Entry.Kind.COLLECTION)
+			{
+				return from == null ? "New slot" + DOT + coins : "New slot" + DOT + coins + DOT + from;
+			}
+			return from == null ? coins + ", " + Format.lower(detail) : coins + DOT + from;
+		}
+		if (e.getKind() == Entry.Kind.LEVEL && "Level up".equals(detail))
+		{
+			int level = e.getLevel();
+			int rose = e.getFrom() > 0 ? level - e.getFrom() : 1;
+			if (rose > 1)
+			{
+				return rose + " levels at once";
+			}
+			if (level == 92)
+			{
+				return "Halfway to 99";
+			}
+			if (level > 0 && level < 99)
+			{
+				return Format.plural(99 - level, "level", "levels") + " to 99";
+			}
+		}
+		return detail;
 	}
+
+	/** Separates the parts of a short detail line. */
+	static final String DOT = " \u00b7 ";
 
 	@Override
 	protected void paintComponent(Graphics graphics)

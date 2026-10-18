@@ -244,13 +244,35 @@ public class AnnalsPanel extends PluginPanel
 		}
 	}
 
+	/** What the timeline was last built from; when only the clock moved, it is left as it is. */
+	private String timelineKey;
+
 	private void rebuildTimeline()
 	{
+		String key = timelineKey();
+		if (key.equals(timelineKey))
+		{
+			return;
+		}
+		timelineKey = key;
 		replace(timeline, TimelineView.build(annals, zone, chapters, limit, () ->
 		{
 			limit += PAGE;
 			rebuildTimeline();
 		}, items, icons, this::refreshLater, strike));
+	}
+
+	private String timelineKey()
+	{
+		long sum = 0;
+		if (annals != null)
+		{
+			for (Entry e : annals.getEntries())
+			{
+				sum = sum * 31 + (e.getAt() ^ e.getTitle().hashCode() ^ e.getItemId() ^ (e.getDetail() == null ? 0 : e.getDetail().hashCode()));
+			}
+		}
+		return (annals == null ? "none" : annals.getEntries().size() + ":" + sum) + "/" + chapters.getSelected() + "/" + limit + "/" + zone;
 	}
 
 	private Recap recap()

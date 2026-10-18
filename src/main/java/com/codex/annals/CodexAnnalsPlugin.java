@@ -65,6 +65,7 @@ import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.util.AsyncBufferedImage;
 import net.runelite.client.util.Filepath;
 import net.runelite.client.util.Text;
+import net.runelite.http.api.item.ItemPrice;
 import net.runelite.http.api.loottracker.LootRecordType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -489,6 +490,18 @@ public class CodexAnnalsPlugin extends Plugin
 				if (now - item.at <= RECENT_MS && item.name.equalsIgnoreCase(kept.getTitle()))
 				{
 					annals.attachItem(item.name, item.id, now - RECENT_MS);
+				}
+			}
+			if (kept.getItemId() == 0)
+			{
+				// No loot to take the picture from, as with a raid's chest opened later: find it by name.
+				for (ItemPrice price : itemManager.search(kept.getTitle()))
+				{
+					if (price.getName().equalsIgnoreCase(kept.getTitle()))
+					{
+						annals.attachItem(kept.getTitle(), price.getId(), now - RECENT_MS);
+						break;
+					}
 				}
 			}
 		}

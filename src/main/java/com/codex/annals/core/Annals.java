@@ -96,6 +96,10 @@ public class Annals
 			entries = new ArrayList<>();
 		}
 		entries.removeIf(e -> e == null);
+		for (Entry e : entries)
+		{
+			e.compact();
+		}
 		if (years == null)
 		{
 			years = new ArrayList<>();
@@ -322,8 +326,7 @@ public class Annals
 		Entry slot = recent(Entry.Kind.COLLECTION, item, now);
 		if (slot != null)
 		{
-			slot.itemId = itemId;
-			slot.value = value;
+			slot.item(itemId, value);
 			slot.detail = source == null ? "New collection log slot" : "New log slot from " + source;
 			return slot;
 		}
@@ -363,7 +366,7 @@ public class Annals
 			{
 				// The game names a new pet in the collection log in the same breath as it arrives.
 				pet.title = entry.getTitle();
-				pet.slot = true;
+				pet.slot = Boolean.TRUE;
 				return pet;
 			}
 			Entry drop = recent(Entry.Kind.DROP, entry.getTitle(), now);
@@ -377,7 +380,7 @@ public class Annals
 		if (entry.getKind() == Entry.Kind.CLUE)
 		{
 			year(now, zone).clues++;
-			if (!ChatParser.clueMilestone(entry.level))
+			if (!ChatParser.clueMilestone(entry.getLevel()))
 			{
 				return null;
 			}
@@ -400,7 +403,7 @@ public class Annals
 			{
 				return null;
 			}
-			if (e.getKind() == Entry.Kind.PET && !e.slot)
+			if (e.getKind() == Entry.Kind.PET && !e.isSlot())
 			{
 				return e;
 			}
@@ -473,7 +476,7 @@ public class Annals
 			{
 				break;
 			}
-			if (e.itemId == 0 && e.getTitle().equalsIgnoreCase(name))
+			if (e.getItemId() == 0 && e.getTitle().equalsIgnoreCase(name))
 			{
 				e.itemId = itemId;
 			}

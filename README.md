@@ -12,9 +12,9 @@ It is part of the **Codex** suite, with [Codex Navigator](https://github.com/Nub
 
 ## What it does
 
-- **Timeline.** Your account's history, newest first, in chapters by month. Filter it to Skills, Feats (quests, diaries, combat tasks), Loot (log slots, pets, drops, clues) or Bosses. A day of ordinary levels folds into one line, so a long grind never buries a pet. At the very end sits the prologue: where the account stood the day the annals began.
+- **Timeline.** Your account's history, newest first, in chapters by month. Filter it to Skills, Feats (quests, diaries, combat tasks), Loot (log slots, pets, drops, clues) or Bosses. A day of ordinary levels folds into one line, so a long grind never buries a pet. Each line leads with what matters: a drop's value and where it came from, or how far a level still is from 99. At the very end sits the prologue: where the account stood the day the annals began. If a line should not be there, right-click it to strike it from the annals.
 - **Year.** One year told in full: its headline ("The year of 99 Ranged"), hours and days played, levels and experience gained, log slots, quests and diaries, a month-by-month strip lit by how much you played, the skills and bosses it was spent on, its highlights and its records (longest streak, busiest month, biggest drop).
-- **Year in Gielinor card.** The year on one page, drawn at double scale so the pixel fonts stay crisp. It grows all year; save it wherever you choose with RuneLite's file chooser, or copy it to the clipboard. Earlier years stay one click away.
+- **Year in Gielinor card.** The year on one page, drawn at double scale so the pixel fonts stay crisp. It grows all year; save it wherever you choose with RuneLite's file chooser, or copy it to the clipboard. Every earlier year stays one click away.
 - **Milestones in chat.** When a 99, a total level or experience milestone, a first kill or a big drop is written down, a short line in the chat box says so. This can be turned off.
 
 <p align="center">
@@ -25,9 +25,11 @@ It is part of the **Codex** suite, with [Codex Navigator](https://github.com/Nub
 
 The annals begin the first time you log in with the plugin on. Nothing before that day can be dated, so the prologue records where the account stood instead: total level, experience, combat level, quests done and every skill already at 99.
 
-After that, levels and experience come from the game's stat updates, kill counts, quests, diaries, combat tasks, collection log slots, pets and clues from the game's own chat messages, and drops from RuneLite's loot events, priced at the Grand Exchange price when they dropped. A drop that also fills a collection log slot is one line, not two. Play time counts while you are logged in, and each year starts from where your skills stood when you first logged in that year.
+After that, levels and experience come from the game's stat updates, kill counts, quests, diaries, combat tasks, collection log slots, pets and clues from the game's own chat messages, and drops from RuneLite's loot events, priced at the Grand Exchange price when they dropped. A drop that also fills a collection log slot is one line, not two, and a new pet is written under its own name. Agility lap counts are not kills and are left out. Play time counts while you are logged in, and each year starts from where your skills stood when you first logged in that year.
 
-Each level can be written down, or only every tenth level and the 99s. Drops are kept from a value you choose (1M by default). The annals keep their 2,000 most telling entries; ordinary old levels make room first.
+New collection log slots are read from the game's own chat line, so turn on *Collection log - New addition notification* in the game's settings (Chat) to have them written down.
+
+Each level can be written down, or only every tenth level and the 99s. Drops are kept from a value you choose (1M by default). The annals keep their 2,000 most telling entries; ordinary old levels make room first. They are saved about a minute after something is written down, every few minutes otherwise, and when you log out or close the client.
 
 ## Rules posture
 

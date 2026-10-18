@@ -164,7 +164,7 @@ public final class Recap
 					break;
 				case COLLECTION:
 					collection++;
-					if (e.value > 0 && (drop == null || e.value > drop.value))
+					if (e.getValue() > 0 && (drop == null || e.getValue() > drop.getValue()))
 					{
 						drop = e;
 					}
@@ -177,7 +177,7 @@ public final class Recap
 					maxes++;
 					break;
 				case DROP:
-					if (drop == null || e.value > drop.value)
+					if (drop == null || e.getValue() > drop.getValue())
 					{
 						drop = e;
 					}

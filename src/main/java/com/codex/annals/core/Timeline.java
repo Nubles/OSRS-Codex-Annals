@@ -111,12 +111,12 @@ public final class Timeline
 			int from = fromLevel(e);
 			if (range == null)
 			{
-				bySkill.put(skill, new int[]{from, e.level});
+				bySkill.put(skill, new int[]{from, e.getLevel()});
 			}
 			else
 			{
 				range[0] = Math.min(range[0], from);
-				range[1] = Math.max(range[1], e.level);
+				range[1] = Math.max(range[1], e.getLevel());
 			}
 		}
 		Entry newest = newestFirst.get(0);
@@ -154,6 +154,6 @@ public final class Timeline
 	/** The level an entry rose from; older saves without it rose by one. */
 	private static int fromLevel(Entry e)
 	{
-		return e.from > 0 ? e.from : e.level - 1;
+		return e.getFrom() > 0 ? e.getFrom() : e.getLevel() - 1;
 	}
 }

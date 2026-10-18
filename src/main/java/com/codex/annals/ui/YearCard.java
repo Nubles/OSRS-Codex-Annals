@@ -224,7 +224,7 @@ public final class YearCard
 				Ui.shadowed(g, Ui.clip(e.getTitle(), fm, edge - tx), tx, y + fm.getAscent() - 2, Theme.mix(Theme.TEXT, color, 0.3));
 				g.setFont(Theme.small());
 				String detail = EntryRow.detail(e);
-				String line = detail == null ? date : date + ", " + Format.lower(detail);
+				String line = detail == null ? date : date + EntryRow.DOT + detail;
 				g.setColor(Theme.TEXT_MUTED);
 				g.drawString(Ui.clip(line, small, edge - tx), tx, y + fm.getAscent() + small.getAscent());
 				y += 32;
