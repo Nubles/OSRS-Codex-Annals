@@ -62,7 +62,7 @@ final class YearView
 
 		int busiest = r.busiestMonth();
 		stack.add(new SectionHeader("Months", busiest >= 0 ? "busiest " + Format.monthName(busiest) : null));
-		stack.add(new MonthStrip(r.getMonthDays(), r.getMonthEntries(), currentMonth));
+		stack.add(new MonthStrip(r.getMonthDays(), r.getMonthEntries(), currentMonth, r.getFirstMonth()));
 
 		List<Recap.SkillYear> skills = r.getSkills();
 		if (!skills.isEmpty())

@@ -158,7 +158,7 @@ public final class YearCard
 
 		header(g, "Months", r.busiestMonth() >= 0 ? "busiest " + Format.monthName(r.busiestMonth()) : null, x, y, w);
 		y += 24;
-		MonthStrip.paint(g, r.getMonthDays(), -1, -1, x, y, w, MonthStrip.HEIGHT);
+		MonthStrip.paint(g, r.getMonthDays(), -1, -1, r.getFirstMonth(), x, y, w, MonthStrip.HEIGHT);
 		y += MonthStrip.HEIGHT + 10;
 
 		List<Recap.SkillYear> skillLines = r.getSkills();
@@ -268,7 +268,9 @@ public final class YearCard
 		String[][] items = kept.toArray(new String[0][]);
 		Color[] colors = keptColors.toArray(new Color[0]);
 		int gap = 4;
-		float cell = (w - gap * (items.length - 1)) / (float) items.length;
+		// Medallions keep the size five would have, centred, so one alone does not stretch across the page.
+		float cell = (w - gap * 4) / 5f;
+		x += Math.round((w - (cell * items.length + gap * (items.length - 1))) / 2);
 		int h = 34;
 		g.setFont(Theme.small());
 		FontMetrics small = g.getFontMetrics();

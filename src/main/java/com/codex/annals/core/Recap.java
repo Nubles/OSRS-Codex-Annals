@@ -107,12 +107,15 @@ public final class Recap
 	private final int clues;
 	private final String headline;
 	private final long begunAt;
+	private final int firstMonth;
 
 	private Recap(Annals annals, Year y, ZoneId zone, int highlightCount)
 	{
 		year = y.year;
 		player = annals.getPlayer();
 		begunAt = annals.getBegunAt();
+		LocalDate begun = Instant.ofEpochMilli(begunAt).atZone(zone).toLocalDate();
+		firstMonth = begunAt > 0 && begun.getYear() == year ? begun.getMonthValue() - 1 : 0;
 		playedMs = y.playedMs;
 		daysPlayed = y.days.size();
 		longestStreak = streak(y.days);
@@ -290,6 +293,12 @@ public final class Recap
 	public long getBegunAt()
 	{
 		return begunAt;
+	}
+
+	/** The first month the annals kept in this year, 0 for January; the months before it were never kept. */
+	public int getFirstMonth()
+	{
+		return firstMonth;
 	}
 
 	public long getPlayedMs()

@@ -24,6 +24,8 @@ public class RecapTest
 		assertEquals(4, r.getDaysPlayed());
 		assertEquals(3, r.getLongestStreak());
 		assertEquals(2, r.busiestMonth());
+		// The annals began in March, so January and February were never kept.
+		assertEquals(2, r.getFirstMonth());
 		assertEquals(1, r.getLevelsGained());
 		assertEquals(1_100_000L, r.getXpGained());
 		assertEquals("Slayer", r.getSkills().get(0).getSkill());

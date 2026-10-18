@@ -1,11 +1,13 @@
 package com.codex.annals.ui;
 
+import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.FontMetrics;
 import java.awt.GradientPaint;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
+import java.awt.Stroke;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.geom.RoundRectangle2D;
@@ -23,16 +25,18 @@ class MonthStrip extends JComponent
 	private final int[] days;
 	private final int[] entries;
 	private final int current;
+	private final int first;
 	private int hover = -1;
 
 	/**
 	 * @param current the month still being lived, 0 for January, or -1 for a finished year
 	 */
-	MonthStrip(int[] days, int[] entries, int current)
+	MonthStrip(int[] days, int[] entries, int current, int first)
 	{
 		this.days = days;
 		this.entries = entries;
 		this.current = current;
+		this.first = first;
 		setOpaque(false);
 		setPreferredSize(new Dimension(10, HEIGHT));
 		setToolTipText("");
@@ -64,6 +68,10 @@ class MonthStrip extends JComponent
 	public String getToolTipText(MouseEvent e)
 	{
 		int m = Math.min(11, Math.max(0, e.getX() * 12 / Math.max(1, getWidth())));
+		if (m < first)
+		{
+			return Format.monthName(m) + ": before the annals began";
+		}
 		return Format.monthName(m) + ": " + Format.plural(days[m], "day", "days") + " played, "
 			+ Format.plural(entries[m], "entry", "entries");
 	}
@@ -73,12 +81,16 @@ class MonthStrip extends JComponent
 	{
 		Graphics2D g = (Graphics2D) graphics.create();
 		Theme.smooth(g);
-		paint(g, days, current, hover, 0, 0, getWidth(), getHeight());
+		paint(g, days, current, hover, first, 0, 0, getWidth(), getHeight());
 		g.dispose();
 	}
 
-	/** Draws the strip in a box; the card uses the same drawing. */
-	static void paint(Graphics2D g, int[] days, int current, int hover, int x, int y, int w, int h)
+	/**
+	 * Draws the strip in a box; the card uses the same drawing.
+	 *
+	 * @param first the first month kept; the months before it are drawn as never kept, not as unplayed
+	 */
+	static void paint(Graphics2D g, int[] days, int current, int hover, int first, int x, int y, int w, int h)
 	{
 		int max = 1;
 		for (int d : days)
@@ -101,6 +113,19 @@ class MonthStrip extends JComponent
 			float cx = x + m * (cell + gap);
 			double t = days[m] / (double) max;
 			RoundRectangle2D tile = new RoundRectangle2D.Float(cx, y, cell, ch, 5, 5);
+			String letter = LETTERS.substring(m, m + 1);
+			if (m < first)
+			{
+				// Before the annals: an empty, dashed outline rather than a dark month that looks unplayed.
+				Stroke old = g.getStroke();
+				g.setStroke(new BasicStroke(1f, BasicStroke.CAP_BUTT, BasicStroke.JOIN_ROUND, 1f, new float[]{2f, 2f}, 0f));
+				g.setColor(Theme.alpha(Theme.STROKE, m == hover ? 220 : 120));
+				g.draw(tile);
+				g.setStroke(old);
+				g.setColor(Theme.alpha(Theme.TEXT_FAINT, 120));
+				g.drawString(letter, Math.round(cx + (cell - fm.stringWidth(letter)) / 2), y + h - 1);
+				continue;
+			}
 			Color top;
 			Color bottom;
 			if (days[m] == 0)
@@ -124,7 +149,6 @@ class MonthStrip extends JComponent
 				g.setColor(Theme.alpha(Color.WHITE, 40));
 				g.drawLine(Math.round(cx + 3), y + 1, Math.round(cx + cell - 3), y + 1);
 			}
-			String letter = LETTERS.substring(m, m + 1);
 			g.setColor(m == best ? Theme.GOLD : m == hover ? Theme.TEXT : Theme.TEXT_FAINT);
 			g.drawString(letter, Math.round(cx + (cell - fm.stringWidth(letter)) / 2), y + h - 1);
 		}
