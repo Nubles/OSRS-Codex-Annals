@@ -140,7 +140,9 @@ public class Annals
 			Annals whole = gson.fromJson(saved, Annals.class);
 			if (whole != null)
 			{
-				return new Loaded(whole.repair(), false);
+				// It read, but a field or an entry a later version keeps would be dropped by the next save.
+				whole.repair();
+				return new Loaded(whole, Unread.any(gson, saved, whole));
 			}
 		}
 		catch (RuntimeException e)

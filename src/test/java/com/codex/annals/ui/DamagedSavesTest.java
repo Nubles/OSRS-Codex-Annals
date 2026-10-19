@@ -221,6 +221,32 @@ public class DamagedSavesTest
 	}
 
 	@Test
+	public void aLaterVersionsSaveIsSetAsideNotQuietlyDropped()
+	{
+		long now = System.currentTimeMillis();
+		String save = GSON.toJson(history(now, 120));
+		assertFalse(Annals.read(GSON, save).damaged);
+		// Each reads without an error, but the next save would drop what this version does not know.
+		String[] later = {
+			save.replaceFirst("^\\{", "{\"version\":2,\"shelf\":{\"a\":[1,{\"b\":2}]},"),
+			save.replaceFirst("\"kind\":\"PET\"", "\"kind\":\"RAID\""),
+			save.replaceFirst("\\{\"kind\":", "{\"mood\":\"glad\",\"kind\":"),
+			save.replaceFirst("\"kc\":\\{", "\"kc\":{\"Vorkath\":-4,"),
+		};
+		for (String s : later)
+		{
+			Annals.Loaded read = Annals.read(GSON, s);
+			assertTrue(s.substring(0, 80), read.damaged);
+			// What could be read is kept, and saves again as whole.
+			assertTrue(read.annals.isBegun());
+			assertFalse(Annals.read(GSON, GSON.toJson(read.annals)).damaged);
+		}
+		// An older save spells out zeros and empty fields the annals now leave out: nothing is lost.
+		String older = save.replaceAll("\\{\"kind\":", "{\"itemId\":0,\"value\":0,\"slot\":false,\"detail\":\"\",\"kind\":");
+		assertFalse(Annals.read(GSON, older).damaged);
+	}
+
+	@Test
 	public void longHistoriesAreQuickOnTheClientThread()
 	{
 		long now = System.currentTimeMillis();
