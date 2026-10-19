@@ -86,6 +86,14 @@ public final class Keepsake
 		long monday = Week.mondayOf(day);
 		long played = 0;
 		boolean anyWeek = false;
+		// Weeks came into the annals later than some annals began, and only five years are kept:
+		// figures summed from them are told only when the weeks reach back to the very first.
+		long earliest = Long.MAX_VALUE;
+		for (Week w : annals.getWeeks())
+		{
+			earliest = Math.min(earliest, w.getStart());
+		}
+		boolean whole = earliest <= Week.mondayOf(begun);
 		String skill = entry.getSkill();
 		int skillWeeks = 0;
 		long skillWeekXp = 0;
@@ -146,6 +154,11 @@ public final class Keepsake
 			sameDay = new ArrayList<>(sameDay.subList(0, SAME_DAY));
 		}
 
+		if (!whole)
+		{
+			played = -1;
+			skillWeeks = 0;
+		}
 		return new Keepsake(entry, day, label(entry), dayOfAnnals, daysPlayed, anyWeek ? played : -1, skill, skillWeeks, skillWeekXp,
 			boss, bossWeekKills, ordinal, dropRank, worthOn(ledger, entry.getAt()), Collections.unmodifiableList(sameDay));
 	}
@@ -285,7 +298,7 @@ public final class Keepsake
 		return daysPlayed;
 	}
 
-	/** Time played by the end of the moment's week, or -1 when no weeks are kept. */
+	/** Time played by the end of the moment's week, or -1 when the weeks kept do not reach back to the start. */
 	public long getPlayedMs()
 	{
 		return playedMs;
@@ -296,7 +309,7 @@ public final class Keepsake
 		return skill;
 	}
 
-	/** Weeks the moment's skill gained experience in, up to and including its own. */
+	/** Weeks the moment's skill gained experience in, up to and including its own; 0 when the weeks kept do not reach back to the start. */
 	public int getSkillWeeks()
 	{
 		return skillWeeks;

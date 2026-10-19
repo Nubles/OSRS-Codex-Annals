@@ -205,13 +205,19 @@ public final class Recap
 		{
 			Entry e = inYear.get(i);
 			// The same drop again is one highlight told with its count, not a column of the same line.
+			if (e.getKind() != Entry.Kind.DROP || sameDrop(e) == null)
+			{
+				highlights.add(e);
+			}
+		}
+		// Every time a highlighted drop came that year, those ranked below the cut included.
+		for (Entry e : inYear)
+		{
 			Entry same = e.getKind() == Entry.Kind.DROP ? sameDrop(e) : null;
-			if (same != null)
+			if (same != null && same != e)
 			{
 				repeats.merge(same, 1, Integer::sum);
-				continue;
 			}
-			highlights.add(e);
 		}
 		headline = headline(inYear);
 	}

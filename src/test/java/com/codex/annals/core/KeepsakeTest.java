@@ -65,6 +65,21 @@ public class KeepsakeTest
 	}
 
 	@Test
+	public void sumsNoWeeksThatDoNotReachBackToTheStart()
+	{
+		// Annals begun in 2025 by a version without weeks; weeks kept only from March 2026.
+		Annals annals = AnnalsTest.begun(AnnalsTest.at(2025, 6, 2, 10), 97, 11_000_000L);
+		annals.weeks = null;
+		annals.tick(AnnalsTest.at(2026, 3, 23, 12), 3_600_000L, UTC);
+		annals.stat("Slayer", 13_034_431L, 99, AnnalsTest.at(2026, 3, 25, 13), UTC, true);
+		Keepsake k = Keepsake.of(annals, find(annals, Entry.Kind.MAX), null, UTC);
+		// An hour in the weeks kept is not the time played by then, nor one week the weeks trained.
+		assertEquals(-1, k.getPlayedMs());
+		assertEquals(0, k.getSkillWeeks());
+		assertTrue(k.getDayOfAnnals() > 290);
+	}
+
+	@Test
 	public void leavesOutWhatItCannotTell()
 	{
 		Annals annals = AnnalsTest.begun(AnnalsTest.at(2026, 3, 12, 10), 80, 2_000_000L);
@@ -133,6 +148,16 @@ public class KeepsakeTest
 		assertEquals("moment", Keepsake.fileName("///"));
 	}
 
+	private static Annals withoutPets(Annals annals)
+	{
+		Annals copy = new Gson().fromJson(new Gson().toJson(annals), Annals.class).repair();
+		for (int d = 1; d <= 8; d++)
+		{
+			copy.remove(AnnalsTest.at(2026, 8, d, 12), Entry.Kind.PET, "Pet " + d);
+		}
+		return copy;
+	}
+
 	@Test
 	public void highlightsTellARepeatedDropOnce()
 	{
@@ -141,16 +166,37 @@ public class KeepsakeTest
 		{
 			annals.drop("Dragon warhammer", 1, 13576, 38_000_000L, "Lizardman shaman", AnnalsTest.at(2026, m, 1, 12));
 		}
+		// Eight quests rank above none of the hammers, but push the later ones below the cut of six.
+		for (int d = 1; d <= 8; d++)
+		{
+			annals.record(new Entry(Entry.Kind.PET, AnnalsTest.at(2026, 8, d, 12), "Pet " + d, "Pet"), AnnalsTest.at(2026, 8, d, 12), UTC);
+		}
 		annals.record(new Entry(Entry.Kind.QUEST, AnnalsTest.at(2026, 3, 20, 12), "Dragon Slayer II", "Quest complete"), AnnalsTest.at(2026, 3, 20, 12), UTC);
 		Recap r = Recap.of(annals, 2026, UTC);
+		// Six pets outrank everything; with them only one hammer line would fit, yet it counts all four.
+		Entry hammer = null;
+		for (Entry e : r.getHighlights())
+		{
+			hammer = e.getKind() == Entry.Kind.DROP ? e : hammer;
+		}
 		List<Entry> shown = r.getHighlightsByDate(6);
-		assertEquals(2, shown.size());
+		assertEquals(6, shown.size());
+		for (int i = 1; i < shown.size(); i++)
+		{
+			assertTrue(shown.get(i - 1).getAt() <= shown.get(i).getAt());
+		}
+		Recap few = Recap.of(withoutPets(annals), 2026, UTC);
+		List<Entry> two = few.getHighlightsByDate(6);
+		assertEquals(2, two.size());
 		// In the order they happened: the quest in March, then the first hammer in April.
-		assertEquals("Dragon Slayer II", shown.get(0).getTitle());
-		assertEquals("Dragon warhammer", shown.get(1).getTitle());
-		assertEquals(AnnalsTest.at(2026, 4, 1, 12), shown.get(1).getAt());
-		assertEquals(4, r.timesOf(shown.get(1)));
-		assertEquals(1, r.timesOf(shown.get(0)));
-		assertTrue(r.getHighlights().get(0).getKind() == Entry.Kind.DROP);
+		assertEquals("Dragon Slayer II", two.get(0).getTitle());
+		assertEquals("Dragon warhammer", two.get(1).getTitle());
+		assertEquals(AnnalsTest.at(2026, 4, 1, 12), two.get(1).getAt());
+		assertEquals(4, few.timesOf(two.get(1)));
+		assertEquals(1, few.timesOf(two.get(0)));
+		if (hammer != null)
+		{
+			assertEquals(4, r.timesOf(hammer));
+		}
 	}
 }
