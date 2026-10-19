@@ -65,6 +65,30 @@ public class AheadTest
 	}
 
 	@Test
+	public void thePaceIsTheLastFourWeeksEvenWithDaysOff()
+	{
+		// Played every other day for eight weeks: the 29 readings kept reach back 56 days, but
+		// the pace is the last four weeks' alone, as the page says.
+		long start = at(2026, 3, 1, 12);
+		Annals annals = begun(start, 80, 2_000_000L);
+		long xp = 2_000_000L;
+		for (int d = 2; d <= 56; d += 2)
+		{
+			long now = start + d * DAY;
+			annals.tick(now, 600, UTC);
+			xp += 100_000;
+			annals.stat("Slayer", xp, Experience.level(xp), now + 3_600_000L, UTC, true);
+		}
+		LocalDate today = LocalDate.of(2026, 3, 1).plusDays(57);
+		annals.tick(start + 57 * DAY, 600, UTC);
+		Ahead ahead = Ahead.of(annals, today, UTC);
+		assertTrue(ahead.isRecent());
+		assertEquals(28, ahead.getDays());
+		// Fourteen days played in the last 28, 100k each: 50k a day.
+		assertEquals(50_000, ahead.getNineties().get(0).getPerDay(), 1);
+	}
+
+	@Test
 	public void tooEarlyForAPace()
 	{
 		long start = at(2026, 3, 1, 12);

@@ -97,8 +97,9 @@ public final class Ahead
 
 	public static Ahead of(Annals annals, LocalDate today, ZoneId zone)
 	{
-		Pace.Snap oldest = annals.pace == null ? null : annals.pace.oldest();
-		int paceDays = oldest == null ? 0 : (int) (today.toEpochDay() - oldest.d);
+		// Four weeks of calendar days, however many of them were played.
+		Pace.Snap oldest = annals.pace == null ? null : annals.pace.from(today.toEpochDay());
+		int paceDays = oldest == null ? 0 : annals.pace.window(today.toEpochDay());
 		Year year = annals.getYear(today.getYear());
 		LocalDate begun = annals.isBegun() ? Instant.ofEpochMilli(annals.begunAt).atZone(zone).toLocalDate() : today;
 		LocalDate yearStart = begun.getYear() == today.getYear() ? begun : today.withDayOfYear(1);

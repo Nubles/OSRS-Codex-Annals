@@ -206,7 +206,6 @@ public class Annals
 		return written;
 	}
 
-	/** Every week kept, oldest first. Read only. */
 	/**
 	 * Hours played a day over about the last four weeks, days off included, from the weeks kept;
 	 * this year's so far until the annals have a week of play to go on. 0 when nothing is known.
@@ -243,6 +242,7 @@ public class Annals
 		return yearDays < Ahead.MIN_DAYS ? 0 : year.playedMs / 3_600_000.0 / yearDays;
 	}
 
+	/** Every week kept, oldest first. Read only. */
 	public List<Week> getWeeks()
 	{
 		return weeks == null ? Collections.emptyList() : Collections.unmodifiableList(weeks);

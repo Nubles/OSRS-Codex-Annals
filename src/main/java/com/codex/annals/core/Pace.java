@@ -62,6 +62,39 @@ public class Pace
 		days.removeIf(s -> s == null || s.xp == null);
 	}
 
+	/**
+	 * The reading a pace of the last {@link #DAYS} calendar days is taken from. The readings kept
+	 * are of days played, so with days off they reach back further than four weeks; then the first
+	 * reading inside the window stands for the day it opened, since nothing was played between
+	 * the reading before it and the window. Without an earlier reading, the oldest; null with none.
+	 */
+	Snap from(long today)
+	{
+		long open = today - DAYS;
+		Snap earlier = null;
+		for (Snap s : days)
+		{
+			if (s.d >= open)
+			{
+				return s;
+			}
+			earlier = s;
+		}
+		return earlier;
+	}
+
+	/** Calendar days a pace from {@link #from} spans: four weeks once the readings reach back that far. */
+	int window(long today)
+	{
+		Snap from = from(today);
+		if (from == null)
+		{
+			return 0;
+		}
+		Snap oldest = oldest();
+		return oldest.d < today - DAYS && from.d >= today - DAYS ? DAYS : (int) (today - from.d);
+	}
+
 	/** The oldest reading kept, or null. */
 	Snap oldest()
 	{

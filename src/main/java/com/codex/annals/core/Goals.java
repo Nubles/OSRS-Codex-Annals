@@ -86,7 +86,7 @@ public final class Goals
 			return next;
 		}
 
-		/** Levels still needed, by skill name. */
+		/** The levels it still needs, by skill name, as the level to reach ("Agility": 60). */
 		public Map<String, Integer> getSkills()
 		{
 			return skills;

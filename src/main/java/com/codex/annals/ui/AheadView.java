@@ -130,7 +130,7 @@ final class AheadView
 				stack.add(row(m, today, icons, Theme.KILLS, -1, pace + ", " + Format.number(m.getRemaining()) + " to go"));
 			}
 		}
-		String basis = ahead.isRecent() ? "the last " + ahead.getDays() + " days" : "this year so far (" + ahead.getDays() + " days)";
+		String basis = ahead.isRecent() ? (ahead.getDays() == 28 ? "the last four weeks" : "the last " + ahead.getDays() + " days") : "this year so far (" + ahead.getDays() + " days)";
 		stack.add(Ui.wrapped("Paced on " + basis + ", every day counted whether you played or not. Kill counts go by this year's kills."
 				+ (goals.isEmpty() ? " Goals you pin in Codex Navigator are dated here too." : ""),
 			Theme.small(), Theme.TEXT_FAINT, Views.WIDTH - 10));
