@@ -255,7 +255,8 @@ public class Annals
 
 	/**
 	 * Fills the weeks from the daily readings the pace keeps, for a save from before weeks were
-	 * kept: the experience between one day's first reading and the next is put on the first day's week.
+	 * kept: the experience between one day's first reading and the next is put on the first day's week,
+	 * unless the two readings are days apart in different weeks.
 	 */
 	private void backfill()
 	{
@@ -264,6 +265,11 @@ public class Annals
 		{
 			Pace.Snap from = days.get(i);
 			Pace.Snap to = days.get(i + 1);
+			if (to.d - from.d > 1 && Week.mondayOf(java.time.LocalDate.ofEpochDay(to.d)) != Week.mondayOf(java.time.LocalDate.ofEpochDay(from.d)))
+			{
+				// A break across weeks: what was done in it cannot be put on any one week.
+				continue;
+			}
 			Week week = null;
 			for (Map.Entry<String, Long> e : to.xp.entrySet())
 			{

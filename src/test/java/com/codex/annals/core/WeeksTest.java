@@ -97,6 +97,32 @@ public class WeeksTest
 	}
 
 	@Test
+	public void aBreakAcrossWeeksIsNotPutOnTheWeekBefore()
+	{
+		long now = at(2026, 3, 2, 10);
+		Annals annals = begun(now, 80, 2_000_000L);
+		long[][] readings = {
+			// Monday, then Thursday of the same week: the gain between is that week's.
+			{LocalDate.of(2026, 3, 2).toEpochDay(), 2_000_000L},
+			{LocalDate.of(2026, 3, 5).toEpochDay(), 2_300_000L},
+			// Then nothing for two weeks: whatever was done meanwhile (on mobile, say) has no week to go on.
+			{LocalDate.of(2026, 3, 18).toEpochDay(), 3_300_000L},
+			{LocalDate.of(2026, 3, 19).toEpochDay(), 3_350_000L}};
+		for (long[] r : readings)
+		{
+			Map<String, Long> xp = new LinkedHashMap<>();
+			xp.put("Slayer", r[1]);
+			annals.pace.note(r[0], xp);
+		}
+		String json = GSON.toJson(annals).replaceAll(",\"weeks\":\\[[^\\]]*\\]", "");
+		List<Week> weeks = GSON.fromJson(json, Annals.class).repair().getWeeks();
+		assertEquals(2, weeks.size());
+		assertEquals(LocalDate.of(2026, 3, 2), weeks.get(0).getMonday());
+		assertEquals(300_000L, (long) weeks.get(0).getXp().get("Slayer"));
+		assertEquals(50_000L, (long) weeks.get(1).getXp().get("Slayer"));
+	}
+
+	@Test
 	public void weeksAreCapped()
 	{
 		Annals annals = begun(at(2020, 1, 6, 10), 80, 2_000_000L);
