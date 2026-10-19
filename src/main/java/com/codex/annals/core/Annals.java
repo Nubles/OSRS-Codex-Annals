@@ -19,6 +19,8 @@ public class Annals
 {
 	/** More than this and the least telling old entries make room; ordinary levels go first. */
 	static final int MAX_ENTRIES = 2000;
+	/** Five years of weeks; the oldest go first. */
+	static final int MAX_WEEKS = 260;
 	private static final int[] KC_MILESTONES = {50, 100, 250, 500, 1000, 2000, 5000, 10000};
 	private static final long[] SKILL_XP = {50_000_000L, 100_000_000L, 200_000_000L};
 	private static final long MAX_XP = 200_000_000L;
@@ -40,6 +42,10 @@ public class Annals
 	int combat;
 	/** Where the skills stood at the start of each recent day, for the pace. */
 	Pace pace = new Pace();
+	/** Week by week, oldest first, for the chapters and the weekly look back; null in a save from before weeks were kept. */
+	List<Week> weeks;
+	/** The Monday of the last week told in chat at login, so it is told once per account. */
+	long toldWeek;
 
 	public boolean isBegun()
 	{
@@ -134,6 +140,18 @@ public class Annals
 			pace = new Pace();
 		}
 		pace.repair();
+		if (weeks == null)
+		{
+			// A save from before weeks were kept: the last few weeks can still be told from the daily readings.
+			weeks = new ArrayList<>();
+			backfill();
+		}
+		weeks.removeIf(w -> w == null);
+		for (Week w : weeks)
+		{
+			w.repair();
+		}
+		weeks.sort((a, b) -> Long.compare(a.w, b.w));
 		return this;
 	}
 
@@ -187,6 +205,97 @@ public class Annals
 		return written;
 	}
 
+	/** Every week kept, oldest first. Read only. */
+	public List<Week> getWeeks()
+	{
+		return weeks == null ? Collections.emptyList() : Collections.unmodifiableList(weeks);
+	}
+
+	/** The Monday of the last week told in chat, as an epoch day. */
+	public long getToldWeek()
+	{
+		return toldWeek;
+	}
+
+	/** Notes that the week beginning on that Monday has been told in chat. */
+	public void told(long monday)
+	{
+		toldWeek = Math.max(toldWeek, monday);
+	}
+
+	/** The week a moment falls in, begun if it is new. */
+	Week week(long now, ZoneId zone)
+	{
+		if (weeks == null)
+		{
+			weeks = new ArrayList<>();
+		}
+		long monday = Week.mondayOf(Instant.ofEpochMilli(now).atZone(zone).toLocalDate());
+		Week last = weeks.isEmpty() ? null : weeks.get(weeks.size() - 1);
+		if (last != null && last.w == monday)
+		{
+			return last;
+		}
+		for (Week w : weeks)
+		{
+			if (w.w == monday)
+			{
+				return w;
+			}
+		}
+		Week week = new Week(monday);
+		weeks.add(week);
+		weeks.sort((a, b) -> Long.compare(a.w, b.w));
+		while (weeks.size() > MAX_WEEKS)
+		{
+			weeks.remove(0);
+		}
+		return week;
+	}
+
+	/**
+	 * Fills the weeks from the daily readings the pace keeps, for a save from before weeks were
+	 * kept: the experience between one day's first reading and the next is put on the first day's week.
+	 */
+	private void backfill()
+	{
+		List<Pace.Snap> days = pace.days;
+		for (int i = 0; i + 1 < days.size(); i++)
+		{
+			Pace.Snap from = days.get(i);
+			Pace.Snap to = days.get(i + 1);
+			Week week = null;
+			for (Map.Entry<String, Long> e : to.xp.entrySet())
+			{
+				Long before = from.xp.get(e.getKey());
+				if (before == null || before <= 0 || e.getValue() <= before)
+				{
+					continue;
+				}
+				if (week == null)
+				{
+					week = weekOn(Week.mondayOf(java.time.LocalDate.ofEpochDay(from.d)));
+				}
+				week.xp.merge(e.getKey(), e.getValue() - before, Long::sum);
+			}
+		}
+	}
+
+	private Week weekOn(long monday)
+	{
+		for (Week w : weeks)
+		{
+			if (w.w == monday)
+			{
+				return w;
+			}
+		}
+		Week week = new Week(monday);
+		weeks.add(week);
+		weeks.sort((a, b) -> Long.compare(a.w, b.w));
+		return week;
+	}
+
 	/** A skill's experience or level changed. */
 	public List<Entry> stat(String skill, long xpNow, int levelNow, long now, ZoneId zone, boolean everyLevel)
 	{
@@ -207,6 +316,10 @@ public class Annals
 		year.startLevel.putIfAbsent(skill, levelBefore == null ? levelNow : levelBefore);
 		year.endXp.put(skill, xpNow);
 		year.endLevel.put(skill, levelNow);
+		if (xpBefore != null && xpNow > xpBefore)
+		{
+			week(now, zone).xp.merge(skill, xpNow - xpBefore, Long::sum);
+		}
 		xp.put(skill, xpNow);
 		levels.put(skill, levelNow);
 		if (xpBefore == null || levelBefore == null)
@@ -313,6 +426,7 @@ public class Annals
 			return null;
 		}
 		year(now, zone).kills.merge(name, gained, Integer::sum);
+		week(now, zone).kills.merge(name, gained, Integer::sum);
 		if (count == 1)
 		{
 			return add(new Entry(Entry.Kind.BOSS, now, "First " + name, "Kill count 1").skill(null, 1));
@@ -506,6 +620,7 @@ public class Annals
 		}
 		Year year = year(now, zone);
 		year.playedMs += ms;
+		week(now, zone).playedMs += ms;
 		long day = Instant.ofEpochMilli(now).atZone(zone).toLocalDate().toEpochDay();
 		pace.note(day, xp);
 		if (year.days.isEmpty() || year.days.get(year.days.size() - 1) != day)

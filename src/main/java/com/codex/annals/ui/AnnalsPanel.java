@@ -2,6 +2,7 @@ package com.codex.annals.ui;
 
 import com.codex.annals.core.Ahead;
 import com.codex.annals.core.Annals;
+import com.codex.annals.core.Chapters;
 import com.codex.annals.core.Entry;
 import com.codex.annals.core.Recap;
 import com.codex.annals.core.Wealth;
@@ -47,6 +48,7 @@ public class AnnalsPanel extends PluginPanel
 	private final Crest crest = new Crest();
 	private final Segmented tabs = new Segmented(true, "Timeline", "Year", "Ahead", "Card");
 	private final Segmented chapters = new Segmented(false, TimelineView.CHAPTERS);
+	private final SearchField search = new SearchField("Search the annals", this::searched);
 	private final CardLayout cards = new CardLayout();
 	private final JPanel content = new JPanel(cards);
 	private final JScrollPane timeline = scroller();
@@ -265,6 +267,22 @@ public class AnnalsPanel extends PluginPanel
 		}
 	}
 
+	/** The search box changed: show the first page of what it finds, and keep typing where it was. */
+	private void searched()
+	{
+		boolean typing = search.isFocusOwner();
+		limit = PAGE;
+		rebuildTimeline();
+		SwingUtilities.invokeLater(() ->
+		{
+			timeline.getVerticalScrollBar().setValue(0);
+			if (typing)
+			{
+				search.requestFocusInWindow();
+			}
+		});
+	}
+
 	/** Codex Ledger's saved worth, or null when it is not kept; shown at the next rebuild. */
 	public void setWealth(Wealth.Saved wealth)
 	{
@@ -294,7 +312,7 @@ public class AnnalsPanel extends PluginPanel
 			return;
 		}
 		timelineKey = key;
-		replace(timeline, TimelineView.build(annals, zone, chapters, limit, () ->
+		replace(timeline, TimelineView.build(annals, zone, chapters, search, limit, () ->
 		{
 			limit += PAGE;
 			rebuildTimeline();
@@ -311,7 +329,9 @@ public class AnnalsPanel extends PluginPanel
 				sum = sum * 31 + (e.getAt() ^ e.getTitle().hashCode() ^ e.getItemId() ^ (e.getDetail() == null ? 0 : e.getDetail().hashCode()));
 			}
 		}
-		return (annals == null ? "none" : annals.getEntries().size() + ":" + sum) + "/" + chapters.getSelected() + "/" + limit + "/" + zone + "/" + LocalDate.now(zone);
+		// The last week's card changes only when the week turns, which the date covers.
+		return (annals == null ? "none" : annals.getEntries().size() + ":" + sum) + "/" + chapters.getSelected() + "/" + limit + "/" + zone + "/" + LocalDate.now(zone)
+			+ "/" + search.query() + "/" + (annals == null ? 0 : annals.getWeeks().size());
 	}
 
 	private Recap recap()
@@ -329,7 +349,18 @@ public class AnnalsPanel extends PluginPanel
 		LocalDate today = LocalDate.now(zone);
 		int current = r != null && r.getYear() == today.getYear() ? today.getMonthValue() - 1 : -1;
 		Recap before = r == null || annals == null ? null : Recap.of(annals, r.getYear() - 1, zone);
-		replace(year, YearView.build(r, before, wealthOf(r), yearChooser(), current, zone, items, icons, this::refreshLater));
+		List<Chapters.Chapter> told = new java.util.ArrayList<>();
+		if (r != null && annals != null)
+		{
+			for (Chapters.Chapter c : Chapters.of(annals.getWeeks()))
+			{
+				if (c.in(r.getYear()))
+				{
+					told.add(c);
+				}
+			}
+		}
+		replace(year, YearView.build(r, before, wealthOf(r), told, yearChooser(), current, zone, items, icons, this::refreshLater));
 	}
 
 	private void rebuildCard()

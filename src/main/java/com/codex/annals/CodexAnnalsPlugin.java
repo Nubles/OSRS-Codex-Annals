@@ -5,6 +5,8 @@ import com.codex.annals.core.Baseline;
 import com.codex.annals.core.ChatParser;
 import com.codex.annals.core.Entry;
 import com.codex.annals.core.Memories;
+import com.codex.annals.core.Week;
+import com.codex.annals.core.WeekNote;
 import com.codex.annals.core.Wealth;
 import com.codex.annals.ui.AnnalsPanel;
 import com.codex.annals.ui.CardActions;
@@ -399,6 +401,7 @@ public class CodexAnnalsPlugin extends Plugin
 			announce("your " + lastYear + " in Gielinor is complete. Its card is waiting in the Annals panel.");
 		}
 		remember(now);
+		lookBack(now);
 		live = true;
 		save();
 		dirty = true;
@@ -420,6 +423,24 @@ public class CodexAnnalsPlugin extends Plugin
 		{
 			int year = today.getYear() - memory.getYears();
 			announce("on this day in " + year + ": " + memory.getEntry().getTitle() + ".");
+		}
+	}
+
+	/** At the first login of a new week, says in chat what the week before held, once per account. */
+	private void lookBack(long now)
+	{
+		ZoneId zone = ZoneId.systemDefault();
+		LocalDate today = java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDate();
+		long lastMonday = Week.mondayOf(today) - 7;
+		if (!config.weekly() || annals.getToldWeek() >= lastMonday)
+		{
+			return;
+		}
+		annals.told(lastMonday);
+		WeekNote note = WeekNote.lastWeek(annals, today, zone);
+		if (note != null)
+		{
+			announce("last week, " + note.line());
 		}
 	}
 

@@ -6,6 +6,7 @@ import com.codex.annals.core.Entry;
 import com.codex.annals.core.Memories;
 import com.codex.annals.core.MonthNote;
 import com.codex.annals.core.Timeline;
+import com.codex.annals.core.WeekNote;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
 import java.time.Instant;
@@ -39,11 +40,16 @@ final class TimelineView
 	 * @param limit how many rows to show before the button that shows more
 	 * @param more called to show more rows
 	 */
-	static JComponent build(Annals annals, ZoneId zone, Segmented chapters, int limit, Runnable more,
+	static JComponent build(Annals annals, ZoneId zone, Segmented chapters, SearchField search, int limit, Runnable more,
 		ItemIcons items, Icons icons, Runnable onLoaded, Consumer<Entry> strike)
 	{
 		StackPanel stack = new StackPanel(6, 8);
 		stack.add(chapters);
+		String query = search == null ? "" : search.query();
+		if (search != null && annals != null && annals.isBegun())
+		{
+			stack.add(search);
+		}
 		if (annals == null || !annals.isBegun())
 		{
 			stack.add(Views.note("The annals are waiting", "Log in and Codex Annals begins your account's history: every level, quest, diary, "
@@ -52,7 +58,13 @@ final class TimelineView
 		}
 
 		Entry.Chapter chapter = Entry.Chapter.values()[chapters.getSelected()];
-		List<Timeline.Row> rows = Timeline.rows(annals.getEntries(), chapter, zone);
+		List<Timeline.Row> rows = Timeline.rows(query.isEmpty() ? annals.getEntries() : matching(annals.getEntries(), query), chapter, zone);
+		if (rows.isEmpty() && !query.isEmpty())
+		{
+			stack.add(Views.note("Nothing found", "No entry " + (chapter == Entry.Chapter.ALL ? "" : "in this chapter ")
+				+ "mentions \"" + search.getText().trim() + "\". Try a skill, a boss, an item or a quest's name."));
+			return stack;
+		}
 		if (rows.isEmpty())
 		{
 			String text = chapter == Entry.Chapter.LOOT
@@ -64,9 +76,19 @@ final class TimelineView
 		}
 
 		Map<YearMonth, List<Entry>> byMonth = new HashMap<>();
-		if (chapter == Entry.Chapter.ALL)
+		if (!query.isEmpty())
+		{
+			int found = 0;
+			for (Timeline.Row r : rows)
+			{
+				found += Math.max(1, r.getFolded());
+			}
+			stack.add(Ui.label(Format.plural(found, "entry", "entries") + " found", Theme.small(), Theme.GOLD_DIM));
+		}
+		else if (chapter == Entry.Chapter.ALL)
 		{
 			memories(stack, annals, zone, items, icons, onLoaded);
+			lastWeek(stack, annals, zone);
 			for (Entry e : annals.getEntries())
 			{
 				byMonth.computeIfAbsent(YearMonth.from(dayOf(e.getAt(), zone)), k -> new ArrayList<>()).add(e);
@@ -123,7 +145,7 @@ final class TimelineView
 			holder.add(new CodexButton("Show older entries", false, more));
 			stack.add(holder);
 		}
-		else if (chapter == Entry.Chapter.ALL && annals.getBaseline() != null)
+		else if (chapter == Entry.Chapter.ALL && query.isEmpty() && annals.getBaseline() != null)
 		{
 			stack.add(new SectionHeader("Prologue", Format.since(annals.getBegunAt())));
 			stack.add(prologue(annals.getBaseline(), dayOf(annals.getBegunAt(), zone)));
@@ -165,6 +187,93 @@ final class TimelineView
 			run.add(row);
 		}
 		card.add(run, BorderLayout.CENTER);
+		stack.add(card);
+	}
+
+	/** Entries whose name, detail or skill mentions the query, oldest first as the annals keep them. */
+	static List<Entry> matching(List<Entry> entries, String query)
+	{
+		List<Entry> out = new ArrayList<>();
+		for (Entry e : entries)
+		{
+			if (contains(e.getTitle(), query) || contains(e.getDetail(), query) || contains(e.getSkill(), query))
+			{
+				out.add(e);
+			}
+		}
+		return out;
+	}
+
+	private static boolean contains(String text, String query)
+	{
+		return text != null && text.toLowerCase(java.util.Locale.ENGLISH).contains(query);
+	}
+
+	/** The last whole week in a card: time, experience and kills, where they went, and against the usual week. */
+	private static void lastWeek(StackPanel stack, Annals annals, ZoneId zone)
+	{
+		WeekNote note = WeekNote.lastWeek(annals, LocalDate.now(zone), zone);
+		if (note == null)
+		{
+			return;
+		}
+		LocalDate monday = note.getMonday();
+		stack.add(new SectionHeader("Last week", Format.shortDay(monday) + " to " + Format.shortDay(monday.plusDays(6))));
+		Card card = new Card(new BorderLayout());
+		card.accent(Theme.TEAL);
+		StackPanel lines = new StackPanel(3, 0);
+		long xp = note.getWeek().totalXp();
+		boolean kills = note.getBoss() != null;
+		lines.add(new WeekFigures(
+			new String[]{Format.duration(note.getWeek().getPlayedMs()), Format.amount(xp), kills ? Format.number(note.getWeek().totalKills()) : Format.number(note.getLevels())},
+			new String[]{"played", "experience", kills ? "kills" : "levels"},
+			new java.awt.Color[]{Theme.GOLD_BRIGHT, Theme.XP, kills ? Theme.KILLS : Theme.GREEN}));
+		List<String> skills = note.getSkills();
+		if (!skills.isEmpty())
+		{
+			String most = skills.size() == 1 ? skills.get(0)
+				: skills.size() == 2 ? skills.get(0) + " and " + skills.get(1)
+				: skills.get(0) + ", " + skills.get(1) + " and " + skills.get(2);
+			lines.add(Ui.wrapped("Most experience in " + most + ".", Theme.small(), Theme.TEXT_MUTED, Views.WIDTH - 30));
+		}
+		List<String> parts = new ArrayList<>();
+		if (kills)
+		{
+			parts.add(note.getBoss() + " " + Format.number(note.getBossKills()));
+		}
+		if (kills && note.getLevels() > 0)
+		{
+			parts.add(Format.plural(note.getLevels(), "level", "levels"));
+		}
+		if (note.getPets() > 0)
+		{
+			parts.add(Format.plural(note.getPets(), "pet", "pets"));
+		}
+		if (note.getSlots() > 0)
+		{
+			parts.add(Format.plural(note.getSlots(), "log slot", "log slots"));
+		}
+		if (note.getQuests() > 0)
+		{
+			parts.add(Format.plural(note.getQuests(), "quest", "quests"));
+		}
+		if (note.getDiaries() > 0)
+		{
+			parts.add(Format.plural(note.getDiaries(), "diary", "diaries"));
+		}
+		if (!parts.isEmpty())
+		{
+			lines.add(Ui.wrapped(String.join("  ·  ", parts), Theme.small(), Theme.TEXT, Views.WIDTH - 30));
+		}
+		double against = note.againstUsual();
+		if (!Double.isNaN(against) && xp > 0)
+		{
+			long pct = Math.round(Math.abs(against) * 100);
+			String text = pct < 5 ? "About your usual week's experience."
+				: pct + "% " + (against > 0 ? "more" : "less") + " experience than your usual week.";
+			lines.add(Ui.wrapped(text, Theme.small(), pct < 5 ? Theme.TEXT_FAINT : against > 0 ? Theme.GREEN : Theme.EMBER, Views.WIDTH - 30));
+		}
+		card.add(lines, BorderLayout.CENTER);
 		stack.add(card);
 	}
 

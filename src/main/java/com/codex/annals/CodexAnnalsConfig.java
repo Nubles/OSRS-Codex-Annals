@@ -75,6 +75,18 @@ public interface CodexAnnalsConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "weekly",
+		name = "Last week at login",
+		description = "At your first login of a new week, put a line in the chat box with what the week before held: time played, experience, kills and log slots",
+		position = 3,
+		section = display
+	)
+	default boolean weekly()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "nameOnCard",
 		name = "Name on card",
 		description = "Write your character's name on the Year in Gielinor card",

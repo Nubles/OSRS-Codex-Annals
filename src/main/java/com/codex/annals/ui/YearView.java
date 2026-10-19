@@ -1,5 +1,6 @@
 package com.codex.annals.ui;
 
+import com.codex.annals.core.Chapters;
 import com.codex.annals.core.Entry;
 import com.codex.annals.core.Recap;
 import com.codex.annals.core.Wealth;
@@ -29,8 +30,8 @@ final class YearView
 	 * @param years the year chooser, or null when only one year is kept
 	 * @param currentMonth the month still being lived when this is the current year, or -1
 	 */
-	static JComponent build(Recap r, Recap before, Wealth wealth, JComponent years, int currentMonth, ZoneId zone, ItemIcons items, Icons icons,
-		Runnable onLoaded)
+	static JComponent build(Recap r, Recap before, Wealth wealth, List<Chapters.Chapter> chapters, JComponent years, int currentMonth,
+		ZoneId zone, ItemIcons items, Icons icons, Runnable onLoaded)
 	{
 		StackPanel stack = new StackPanel(8, 8);
 		if (years != null)
@@ -67,6 +68,23 @@ final class YearView
 		int busiest = r.busiestMonth();
 		stack.add(new SectionHeader("Months", busiest >= 0 ? "busiest " + Format.monthName(busiest) : null));
 		stack.add(new MonthStrip(r.getMonthDays(), r.getMonthEntries(), currentMonth, r.getFirstMonth()));
+
+		if (chapters != null && !chapters.isEmpty())
+		{
+			// The stretches of weeks the year was spent on, oldest first, as the story reads.
+			stack.add(new SectionHeader("Chapters", Format.plural(chapters.size(), "chapter", "chapters")));
+			JPanel run = new JPanel();
+			run.setOpaque(false);
+			run.setLayout(new BoxLayout(run, BoxLayout.Y_AXIS));
+			for (int i = 0; i < chapters.size(); i++)
+			{
+				Chapters.Chapter c = chapters.get(i);
+				ChapterRow row = new ChapterRow(c, c.isBoss() || icons == null ? null : icons.skill(c.getFocus()), i == 0, i == chapters.size() - 1);
+				row.setAlignmentX(JComponent.LEFT_ALIGNMENT);
+				run.add(row);
+			}
+			stack.add(run);
+		}
 
 		List<Recap.SkillYear> skills = r.getSkills();
 		if (!skills.isEmpty())
