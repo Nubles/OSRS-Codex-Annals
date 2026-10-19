@@ -3,10 +3,8 @@ package com.codex.annals.ui;
 import com.codex.annals.core.Entry;
 import com.codex.annals.core.Recap;
 import com.codex.annals.core.Wealth;
-import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
-import java.awt.Composite;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.GradientPaint;
@@ -74,10 +72,8 @@ public final class YearCard
 			g.fillRect(grain.nextInt(w), grain.nextInt(h), 1, 1);
 		}
 
-		Composite old = g.getComposite();
-		g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.04f));
-		Sigil.paint(g, w - 196, h - 206, 180);
-		g.setComposite(old);
+		// The mark engraved faintly in the corner: lines only, so it never muddies what sits over it.
+		Sigil.engrave(g, w - 196, h - 206, 180, Theme.alpha(Theme.GOLD, 16));
 		g.setClip(null);
 
 		g.setStroke(new BasicStroke(1f));
@@ -90,6 +86,18 @@ public final class YearCard
 		{
 			diamond(g, c[0], c[1], 3.5f, Theme.GOLD);
 		}
+	}
+
+	/** "+26", or a plain "0" for a year with no level yet, rather than "+0". */
+	static String levels(Recap r)
+	{
+		return r.getLevelsGained() > 0 ? "+" + Format.number(r.getLevelsGained()) : "0";
+	}
+
+	/** The experience under the levels, or "none yet" for a year with none, rather than "+0 xp". */
+	static String levelsNote(Recap r)
+	{
+		return r.getXpGained() > 0 ? Format.xp(r.getXpGained()) + " xp" : "none yet";
 	}
 
 	/** Lays out and draws everything inside the frame; returns the page height it needs. */
@@ -139,7 +147,8 @@ public final class YearCard
 		y += body.getHeight();
 		g.setFont(Theme.small());
 		g.setColor(Theme.TEXT_MUTED);
-		String when = Format.hours(r.getPlayedMs()) + " across " + Format.plural(r.getDaysPlayed(), "day", "days");
+		// The days are the first tile just below, so this line tells the hours alone.
+		String when = Format.hours(r.getPlayedMs()) + " played";
 		g.drawString(when, x + (w - small.stringWidth(when)) / 2, y + small.getAscent());
 		y += small.getHeight() + 8;
 		rule(g, x, y, w);
@@ -149,10 +158,9 @@ public final class YearCard
 		int tileH = 54;
 		StatTile.paint(g, Format.number(r.getDaysPlayed()), "Days played",
 			r.getLongestStreak() > 1 ? "best run " + r.getLongestStreak() : "", Theme.TEAL, x, y, tileW, tileH);
-		StatTile.paint(g, "+" + Format.number(r.getLevelsGained()), "Levels", Format.xp(r.getXpGained()) + " xp", Theme.GREEN,
-			x + tileW + 6, y, tileW, tileH);
+		StatTile.paint(g, levels(r), "Levels", levelsNote(r), Theme.GREEN, x + tileW + 6, y, tileW, tileH);
 		List<Recap.KillYear> bosses = r.getBosses();
-		StatTile.paint(g, Format.number(r.getKills()), "Boss kills", bosses.isEmpty() ? "" : bosses.get(0).getName(), Theme.KILLS,
+		StatTile.paint(g, Format.number(r.getKills()), "Boss kills", bosses.isEmpty() ? "none yet" : bosses.get(0).getName(), Theme.KILLS,
 			x + (tileW + 6) * 2, y, w - (tileW + 6) * 2, tileH);
 		y += tileH + 8;
 

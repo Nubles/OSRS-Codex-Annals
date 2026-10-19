@@ -1,5 +1,8 @@
 package com.codex.annals.ui;
 
+import java.math.BigDecimal;
+import java.math.MathContext;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -17,36 +20,34 @@ public final class Format
 	private static final DateTimeFormatter MONTH = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH);
 	private static final String[] MONTHS = {"January", "February", "March", "April", "May", "June", "July", "August",
 		"September", "October", "November", "December"};
+	private static final MathContext THREE = new MathContext(3, RoundingMode.HALF_UP);
 	private static final DateTimeFormatter FILE = DateTimeFormatter.ofPattern("yyyy-MM-dd HH-mm", Locale.ENGLISH);
 
 	private Format()
 	{
 	}
 
-	/** "8,240", "41.2k", "412k", "1.24M". */
+	/**
+	 * "8,240", "41.2k", "412k", "1.24M", "41.0M", "412M", "1.50B": three figures at every size,
+	 * trailing nought kept, so amounts side by side on one card are told to the same precision.
+	 */
 	public static String amount(long n)
 	{
 		if (n < 10_000)
 		{
 			return String.format(Locale.ENGLISH, "%,d", n);
 		}
-		if (n < 100_000)
+		// Rounded first, so 999,600 reads "1.00M" rather than "1000k".
+		long r = new BigDecimal(n).round(THREE).longValue();
+		if (r < 1_000_000)
 		{
-			return trim(n / 1_000.0, 1) + "k";
+			return fixed(r / 1_000.0, r < 100_000 ? 1 : 0) + "k";
 		}
-		if (n < 1_000_000)
+		if (r < 1_000_000_000)
 		{
-			return Math.round(n / 1_000.0) + "k";
+			return fixed(r / 1_000_000.0, r < 10_000_000 ? 2 : r < 100_000_000 ? 1 : 0) + "M";
 		}
-		if (n < 10_000_000)
-		{
-			return trim(n / 1_000_000.0, 2) + "M";
-		}
-		if (n < 1_000_000_000)
-		{
-			return trim(n / 1_000_000.0, 1) + "M";
-		}
-		return trim(n / 1_000_000_000.0, 2) + "B";
+		return fixed(r / 1_000_000_000.0, r < 10_000_000_000L ? 2 : r < 100_000_000_000L ? 1 : 0) + "B";
 	}
 
 	/** Gained experience with its sign: "+412k". */
@@ -61,13 +62,10 @@ public final class Format
 		return gp > 0 ? "+" + amount(gp) : gp < 0 ? "-" + amount(-gp) : "0";
 	}
 
-	/** A change in coins with its sign in at most three figures, for tight spaces: "+248M", "-4.1M". */
+	/** A change in coins with its sign in three figures, for tight spaces: "+248M", "-4.10M". */
 	public static String signedCompact(long gp)
 	{
-		long n = Math.abs(gp);
-		String text = n >= 100_000_000L && n < 999_500_000L ? Math.round(n / 1_000_000.0) + "M"
-			: n >= 10_000_000L && n < 100_000_000L ? trim(n / 1_000_000.0, 1) + "M" : amount(n);
-		return gp > 0 ? "+" + text : gp < 0 ? "-" + text : "0";
+		return signedCoins(gp);
 	}
 
 	public static String coins(long gp)
@@ -75,14 +73,9 @@ public final class Format
 		return amount(Math.max(0, gp));
 	}
 
-	private static String trim(double value, int places)
+	private static String fixed(double value, int places)
 	{
-		String text = String.format(Locale.ENGLISH, "%." + places + "f", value);
-		while (text.contains(".") && (text.endsWith("0") || text.endsWith(".")))
-		{
-			text = text.substring(0, text.length() - 1);
-		}
-		return text;
+		return String.format(Locale.ENGLISH, "%." + places + "f", value);
 	}
 
 	/** "312k/hr", or "" when there is no rate yet. */

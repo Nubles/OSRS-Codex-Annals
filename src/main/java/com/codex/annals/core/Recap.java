@@ -108,6 +108,8 @@ public final class Recap
 	private int pets;
 	private int maxes;
 	private final int clues;
+	/** Days played within which a year with nothing told yet is only beginning, not quiet. */
+	static final int FIRST_DAYS = 7;
 	private final String headline;
 	private final long begunAt;
 	private final int firstMonth;
@@ -219,7 +221,7 @@ public final class Recap
 				repeats.merge(same, 1, Integer::sum);
 			}
 		}
-		headline = headline(inYear);
+		headline = headline(inYear, zone);
 	}
 
 	/** The recap of one year, or null if the annals have nothing for it. */
@@ -241,7 +243,7 @@ public final class Recap
 		return list;
 	}
 
-	private String headline(List<Entry> ranked)
+	private String headline(List<Entry> ranked, ZoneId zone)
 	{
 		for (Entry e : ranked)
 		{
@@ -275,6 +277,11 @@ public final class Recap
 		if (!skills.isEmpty())
 		{
 			return "A year of " + skills.get(0).skill;
+		}
+		if (daysPlayed <= FIRST_DAYS)
+		{
+			// Too soon to call a year quiet: the annals, or this year of them, have only begun.
+			return firstMonth > 0 || Instant.ofEpochMilli(begunAt).atZone(zone).getYear() == year ? "The annals begin" : "The year begins";
 		}
 		return "A quiet year";
 	}
@@ -386,9 +393,19 @@ public final class Recap
 		return monthEntries.clone();
 	}
 
-	/** The busiest month by days played, 0 for January, or -1 if no day was played. */
+	/** The busiest month by days played, 0 for January, or -1 when fewer than two months were played. */
 	public int busiestMonth()
 	{
+		int played = 0;
+		for (int m = 0; m < 12; m++)
+		{
+			played += monthDays[m] > 0 ? 1 : 0;
+		}
+		if (played < 2)
+		{
+			// One month played is not the busiest of anything.
+			return -1;
+		}
 		int best = -1;
 		for (int m = 0; m < 12; m++)
 		{

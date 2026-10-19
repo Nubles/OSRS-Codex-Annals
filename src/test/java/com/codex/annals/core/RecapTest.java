@@ -33,4 +33,16 @@ public class RecapTest
 		assertEquals(Entry.Kind.MAX, r.getHighlights().get(0).getKind());
 		assertEquals(Arrays.asList(2026), Recap.years(annals));
 	}
+
+	@Test
+	public void aFirstDayIsABeginningNotAQuietYear()
+	{
+		long now = AnnalsTest.at(2026, 3, 12, 10);
+		Annals annals = AnnalsTest.begun(now, 80, 2_000_000L);
+		annals.tick(now, 600, AnnalsTest.UTC);
+		Recap r = Recap.of(annals, 2026, AnnalsTest.UTC);
+		assertEquals("The annals begin", r.getHeadline());
+		// One month played is not the busiest of anything.
+		assertEquals(-1, r.busiestMonth());
+	}
 }

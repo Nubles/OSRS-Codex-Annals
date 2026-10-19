@@ -1,6 +1,7 @@
 package com.codex.annals.ui;
 
 import com.codex.annals.core.Entry;
+import com.codex.annals.core.Keepsake;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -128,6 +129,18 @@ class EntryRow extends JComponent
 		{
 			return null;
 		}
+		if (e.getKind() == Entry.Kind.MAX && detail.startsWith(OLD_MAX))
+		{
+			// Earlier annals wrote "99 number 7"; told the way it is written now.
+			try
+			{
+				return "Your " + Keepsake.ordinal(Integer.parseInt(detail.substring(OLD_MAX.length()).trim())) + " 99";
+			}
+			catch (NumberFormatException ignored)
+			{
+				return detail;
+			}
+		}
 		if (e.getValue() > 0)
 		{
 			String from = source(detail);
@@ -160,6 +173,7 @@ class EntryRow extends JComponent
 
 	/** Separates the parts of a short detail line. */
 	static final String DOT = " \u00b7 ";
+	private static final String OLD_MAX = "99 number ";
 
 	@Override
 	protected void paintComponent(Graphics graphics)

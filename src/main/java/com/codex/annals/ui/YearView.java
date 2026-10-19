@@ -55,7 +55,8 @@ final class YearView
 		JLabel year = Ui.label(String.valueOf(r.getYear()), Theme.title().deriveFont(Theme.title().getSize2D() * 2), Theme.GOLD_BRIGHT);
 		lines.add(year);
 		lines.add(Ui.label(r.getHeadline(), Theme.body(), Theme.TEXT));
-		lines.add(Ui.label(Format.hours(r.getPlayedMs()) + " across " + Format.plural(r.getDaysPlayed(), "day", "days"), Theme.small(), Theme.TEXT_MUTED));
+		// The days are the first tile below; the hours alone here.
+		lines.add(Ui.label(Format.hours(r.getPlayedMs()) + " played", Theme.small(), Theme.TEXT_MUTED));
 		hero.add(lines, BorderLayout.CENTER);
 		stack.add(hero);
 
@@ -63,9 +64,9 @@ final class YearView
 		tiles.setOpaque(false);
 		tiles.add(new StatTile(Format.number(r.getDaysPlayed()), "Days played",
 			r.getLongestStreak() > 1 ? r.getLongestStreak() + " in a row" : "", Theme.TEAL));
-		tiles.add(new StatTile("+" + Format.number(r.getLevelsGained()), "Levels", Format.xp(r.getXpGained()) + " xp", Theme.GREEN));
+		tiles.add(new StatTile(YearCard.levels(r), "Levels", YearCard.levelsNote(r), Theme.GREEN));
 		tiles.add(new StatTile(Format.number(r.getCollection()), "Log slots", r.getPets() > 0 ? Format.plural(r.getPets(), "pet", "pets") : "new this year", Theme.GOLD));
-		tiles.add(new StatTile(Format.number(r.getQuests()), "Quests", Format.plural(r.getDiaries(), "diary", "diaries"), Theme.FEAT));
+		tiles.add(new StatTile(Format.number(r.getQuests()), "Quests", r.getDiaries() > 0 ? Format.plural(r.getDiaries(), "diary", "diaries") : "no diary yet", Theme.FEAT));
 		stack.add(tiles);
 
 		int busiest = r.busiestMonth();

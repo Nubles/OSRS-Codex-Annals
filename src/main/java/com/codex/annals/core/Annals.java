@@ -391,7 +391,7 @@ public class Annals
 				{
 					maxed += level >= 99 ? 1 : 0;
 				}
-				String detail = maxed == 1 ? "Your first 99" : maxed == levels.size() ? "Every skill at 99" : "99 number " + maxed;
+				String detail = maxed == 1 ? "Your first 99" : maxed == levels.size() ? "Every skill at 99" : "Your " + Keepsake.ordinal(maxed) + " 99";
 				written.add(add(new Entry(Entry.Kind.MAX, now, "99 " + skill, detail).skill(skill, 99)));
 			}
 			else if (everyLevel || levelNow % 10 == 0)
