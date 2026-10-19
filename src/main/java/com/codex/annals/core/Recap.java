@@ -6,6 +6,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -97,6 +98,8 @@ public final class Recap
 	private final List<SkillYear> skills = new ArrayList<>();
 	private final List<KillYear> bosses = new ArrayList<>();
 	private final List<Entry> highlights = new ArrayList<>();
+	/** How many more times a highlighted drop came that year, beyond the one shown. */
+	private final Map<Entry, Integer> repeats = new IdentityHashMap<>();
 	private final Entry biggestDrop;
 	private int quests;
 	private int diaries;
@@ -105,9 +108,15 @@ public final class Recap
 	private int pets;
 	private int maxes;
 	private final int clues;
+	/** Days played within which a year with nothing told yet is only beginning, not quiet. */
+	static final int FIRST_DAYS = 7;
 	private final String headline;
 	private final long begunAt;
 	private final int firstMonth;
+	/** Whether a later year has been played, so this one is over and cannot be only beginning. */
+	private final boolean over;
+	/** Days played, as epoch days, oldest first. */
+	private final List<Long> days;
 
 	private Recap(Annals annals, Year y, ZoneId zone, int highlightCount)
 	{
@@ -116,8 +125,11 @@ public final class Recap
 		begunAt = annals.getBegunAt();
 		LocalDate begun = Instant.ofEpochMilli(begunAt).atZone(zone).toLocalDate();
 		firstMonth = begunAt > 0 && begun.getYear() == year ? begun.getMonthValue() - 1 : 0;
+		List<Year> all = annals.getYears();
+		over = !all.isEmpty() && all.get(all.size() - 1).year > year;
 		playedMs = y.playedMs;
 		daysPlayed = y.days.size();
+		days = java.util.Collections.unmodifiableList(new java.util.ArrayList<>(y.days));
 		longestStreak = streak(y.days);
 		xpGained = y.totalGained();
 		levelsGained = y.levelsGained();
@@ -197,9 +209,23 @@ public final class Recap
 		inYear.sort(Comparator.comparingDouble(Entry::rank).reversed().thenComparingLong(Entry::getAt));
 		for (int i = 0; i < inYear.size() && highlights.size() < highlightCount; i++)
 		{
-			highlights.add(inYear.get(i));
+			Entry e = inYear.get(i);
+			// The same drop again is one highlight told with its count, not a column of the same line.
+			if (e.getKind() != Entry.Kind.DROP || sameDrop(e) == null)
+			{
+				highlights.add(e);
+			}
 		}
-		headline = headline(inYear);
+		// Every time a highlighted drop came that year, those ranked below the cut included.
+		for (Entry e : inYear)
+		{
+			Entry same = e.getKind() == Entry.Kind.DROP ? sameDrop(e) : null;
+			if (same != null && same != e)
+			{
+				repeats.merge(same, 1, Integer::sum);
+			}
+		}
+		headline = headline(inYear, zone);
 	}
 
 	/** The recap of one year, or null if the annals have nothing for it. */
@@ -221,7 +247,7 @@ public final class Recap
 		return list;
 	}
 
-	private String headline(List<Entry> ranked)
+	private String headline(List<Entry> ranked, ZoneId zone)
 	{
 		for (Entry e : ranked)
 		{
@@ -256,6 +282,11 @@ public final class Recap
 		{
 			return "A year of " + skills.get(0).skill;
 		}
+		if (daysPlayed <= FIRST_DAYS && !over)
+		{
+			// Too soon to call a year quiet: the annals, or this year of them, have only begun.
+			return firstMonth > 0 || Instant.ofEpochMilli(begunAt).atZone(zone).getYear() == year ? "The annals begin" : "The year begins";
+		}
 		return "A quiet year";
 	}
 
@@ -278,6 +309,29 @@ public final class Recap
 			last = day;
 		}
 		return best;
+	}
+
+	/**
+	 * Days played back to back up to today: counted from yesterday while today is not played
+	 * yet, so a streak is not lost before the day is out.
+	 */
+	public static int currentStreak(List<Long> days, long today)
+	{
+		java.util.Set<Long> played = new java.util.HashSet<>(days);
+		long day = played.contains(today) ? today : today - 1;
+		int n = 0;
+		while (played.contains(day))
+		{
+			n++;
+			day--;
+		}
+		return n;
+	}
+
+	/** Days played in the year, as epoch days in the player's own time, oldest first. */
+	public List<Long> getDays()
+	{
+		return days;
 	}
 
 	public int getYear()
@@ -343,9 +397,19 @@ public final class Recap
 		return monthEntries.clone();
 	}
 
-	/** The busiest month by days played, 0 for January, or -1 if no day was played. */
+	/** The busiest month by days played, 0 for January, or -1 when fewer than two months were played. */
 	public int busiestMonth()
 	{
+		int played = 0;
+		for (int m = 0; m < 12; m++)
+		{
+			played += monthDays[m] > 0 ? 1 : 0;
+		}
+		if (played < 2)
+		{
+			// One month played is not the busiest of anything.
+			return -1;
+		}
 		int best = -1;
 		for (int m = 0; m < 12; m++)
 		{
@@ -370,6 +434,32 @@ public final class Recap
 	public List<Entry> getHighlights()
 	{
 		return Collections.unmodifiableList(highlights);
+	}
+
+	/** The most telling few highlights, told in the order they happened, as a thread reads. */
+	public List<Entry> getHighlightsByDate(int count)
+	{
+		List<Entry> shown = new ArrayList<>(highlights.subList(0, Math.min(count, highlights.size())));
+		shown.sort(Comparator.comparingLong(Entry::getAt));
+		return shown;
+	}
+
+	/** How many times a highlighted drop came that year in all; 1 for anything else. */
+	public int timesOf(Entry highlight)
+	{
+		return 1 + repeats.getOrDefault(highlight, 0);
+	}
+
+	private Entry sameDrop(Entry e)
+	{
+		for (Entry h : highlights)
+		{
+			if (h.getKind() == Entry.Kind.DROP && h.getTitle().equalsIgnoreCase(e.getTitle()))
+			{
+				return h;
+			}
+		}
+		return null;
 	}
 
 	public Entry getBiggestDrop()

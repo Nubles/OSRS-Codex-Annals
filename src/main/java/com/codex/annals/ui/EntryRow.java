@@ -1,6 +1,7 @@
 package com.codex.annals.ui;
 
 import com.codex.annals.core.Entry;
+import com.codex.annals.core.Keepsake;
 import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Dimension;
@@ -24,13 +25,15 @@ import javax.swing.JPopupMenu;
 class EntryRow extends JComponent
 {
 	static final int HEIGHT = 34;
-	private static final int DATE_W = 36;
+	private static final int DATE_W = 38;
 
 	private final Entry entry;
 	private final LocalDate date;
 	private final BufferedImage icon;
 	private final boolean first;
 	private final boolean last;
+	/** How many times the moment came, for a highlight that stands for repeats of one drop. */
+	private int times = 1;
 
 	EntryRow(Entry entry, LocalDate date, BufferedImage icon, boolean first, boolean last)
 	{
@@ -41,36 +44,66 @@ class EntryRow extends JComponent
 		this.last = last;
 		setOpaque(false);
 		setPreferredSize(new Dimension(10, HEIGHT));
-		String full = entry.getDetail();
+		// A 99 told the way it is written now, even from an older save.
+		String full = entry.getKind() == Entry.Kind.MAX ? detail(entry) : entry.getDetail();
 		String worth = entry.getValue() > 0 ? ", worth " + Format.coins(entry.getValue()) : "";
 		setToolTipText(Format.date(entry.getAt()) + ": " + entry.getTitle() + (full == null ? "" : ", " + Format.lower(full)) + worth);
 	}
 
 	/**
-	 * Lets the player strike this line from the annals with a right click, after saying yes.
+	 * The row's right-click menu: make a keepsake of the moment, or strike it from the annals
+	 * after saying yes. The prologue has neither.
 	 *
-	 * @param strike what to do with the entry, or null to leave the row as it is
+	 * @param keep what to do when a keepsake is asked for, or null for no such item
+	 * @param strike what to do with a struck entry, or null for no such item
 	 */
-	void strikeWith(Consumer<Entry> strike)
+	void menu(Consumer<Entry> keep, Consumer<Entry> strike)
 	{
-		if (strike == null || entry.getKind() == Entry.Kind.BEGIN)
+		if ((strike == null && keep == null) || entry.getKind() == Entry.Kind.BEGIN)
 		{
 			return;
 		}
 		JPopupMenu menu = new JPopupMenu();
-		JMenuItem item = new JMenuItem("Strike from the annals");
-		item.addActionListener(e ->
+		if (keep != null)
 		{
-			int answer = JOptionPane.showConfirmDialog(this,
-				"Strike \"" + entry.getTitle() + "\" of " + Format.date(entry.getAt()) + " from your annals?\nThis cannot be undone.",
-				"Codex Annals", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
-			if (answer == JOptionPane.YES_OPTION)
+			JMenuItem item = new JMenuItem("Make a keepsake card");
+			item.addActionListener(e -> keep.accept(entry));
+			menu.add(item);
+		}
+		if (strike != null)
+		{
+			JMenuItem item = new JMenuItem("Strike from the annals");
+			item.addActionListener(e ->
 			{
-				strike.accept(entry);
-			}
-		});
-		menu.add(item);
+				int answer = JOptionPane.showConfirmDialog(this,
+					"Strike \"" + entry.getTitle() + "\" of " + Format.date(entry.getAt()) + " from your annals?\nThis cannot be undone.",
+					"Codex Annals", JOptionPane.YES_NO_OPTION, JOptionPane.QUESTION_MESSAGE);
+				if (answer == JOptionPane.YES_OPTION)
+				{
+					strike.accept(entry);
+				}
+			});
+			menu.add(item);
+		}
 		setComponentPopupMenu(menu);
+	}
+
+	/** Tells the row it stands for several of the same drop: its detail leads with the count. */
+	EntryRow times(int times)
+	{
+		this.times = times;
+		return this;
+	}
+
+	/** "×4 · 38M · Lizardman shaman" for a drop that came four times; the plain detail otherwise. */
+	static String detail(Entry e, int times)
+	{
+		String detail = detail(e);
+		if (times < 2)
+		{
+			return detail;
+		}
+		return "\u00d7" + times + (detail == null ? "" : DOT + detail);
 	}
 
 	/** What a drop or slot came from, as its stored detail names it, or null. */
@@ -96,6 +129,18 @@ class EntryRow extends JComponent
 		if (detail == null)
 		{
 			return null;
+		}
+		if (e.getKind() == Entry.Kind.MAX && detail.startsWith(OLD_MAX))
+		{
+			// Earlier annals wrote "99 number 7"; told the way it is written now.
+			try
+			{
+				return "Your " + Keepsake.ordinal(Integer.parseInt(detail.substring(OLD_MAX.length()).trim())) + " 99";
+			}
+			catch (NumberFormatException ignored)
+			{
+				return detail;
+			}
 		}
 		if (e.getValue() > 0)
 		{
@@ -129,6 +174,7 @@ class EntryRow extends JComponent
 
 	/** Separates the parts of a short detail line. */
 	static final String DOT = " \u00b7 ";
+	private static final String OLD_MAX = "99 number ";
 
 	@Override
 	protected void paintComponent(Graphics graphics)
@@ -155,7 +201,10 @@ class EntryRow extends JComponent
 
 		g.setFont(Theme.small());
 		FontMetrics small = g.getFontMetrics();
-		Ui.shadowed(g, Format.shortDay(date), 0, ny + small.getAscent() / 2 - 1, Theme.TEXT_FAINT);
+		// The date sits right against the thread, clear of a ringed node, however wide its month.
+		String day = Format.shortDay(date);
+		int dx = Math.max(0, nx - (grand(entry.getKind()) ? 9 : 7) - small.stringWidth(day));
+		Ui.shadowed(g, day, dx, ny + small.getAscent() / 2 - 1, Theme.TEXT_FAINT);
 
 		int tx = nx + 10;
 		int right = w;
@@ -171,7 +220,7 @@ class EntryRow extends JComponent
 		g.setFont(Theme.body());
 		FontMetrics fm = g.getFontMetrics();
 		Ui.shadowed(g, Ui.clip(entry.getTitle(), fm, right - tx), tx, ny + fm.getAscent() / 2 - 1, Theme.mix(Theme.TEXT, color, 0.25));
-		String detail = detail(entry);
+		String detail = detail(entry, times);
 		if (detail != null)
 		{
 			g.setFont(Theme.small());

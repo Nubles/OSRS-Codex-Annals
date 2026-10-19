@@ -2,10 +2,9 @@ package com.codex.annals.ui;
 
 import com.codex.annals.core.Entry;
 import com.codex.annals.core.Recap;
-import java.awt.AlphaComposite;
+import com.codex.annals.core.Wealth;
 import java.awt.BasicStroke;
 import java.awt.Color;
-import java.awt.Composite;
 import java.awt.Font;
 import java.awt.FontMetrics;
 import java.awt.GradientPaint;
@@ -36,24 +35,35 @@ public final class YearCard
 	}
 
 	/** Renders the card; icons still loading are left out and onLoaded runs when one arrives. */
-	public static BufferedImage render(Recap r, boolean showName, ItemIcons items, Icons skills, Runnable onLoaded)
+	public static BufferedImage render(Recap r, Wealth wealth, boolean showName, ItemIcons items, Icons skills, Runnable onLoaded)
 	{
 		BufferedImage scratch = new BufferedImage(WIDTH, 2000, BufferedImage.TYPE_INT_ARGB);
 		Graphics2D sg = scratch.createGraphics();
-		int height = content(sg, r, showName, items, skills, onLoaded);
+		int height = content(sg, r, wealth, showName, items, skills, onLoaded);
 		sg.dispose();
 
 		BufferedImage image = new BufferedImage(WIDTH * SCALE, height * SCALE, BufferedImage.TYPE_INT_ARGB);
 		Graphics2D g = image.createGraphics();
 		g.scale(SCALE, SCALE);
 		Theme.smooth(g);
-		frame(g, height);
-		content(g, r, showName, items, skills, onLoaded);
+		frame(g, height, scratch);
+		content(g, r, wealth, showName, items, skills, onLoaded);
 		g.dispose();
 		return image;
 	}
 
-	private static void frame(Graphics2D g, int h)
+	/** The gilt page both cards are drawn on. */
+	static void frame(Graphics2D g, int h)
+	{
+		frame(g, h, null);
+	}
+
+	/**
+	 * The gilt page both cards are drawn on.
+	 *
+	 * @param ink the card's content drawn once on its own, so the engraved mark keeps clear of it; or null
+	 */
+	static void frame(Graphics2D g, int h, BufferedImage ink)
 	{
 		int w = WIDTH;
 		RoundRectangle2D page = new RoundRectangle2D.Float(0, 0, w, h, 18, 18);
@@ -72,10 +82,17 @@ public final class YearCard
 			g.fillRect(grain.nextInt(w), grain.nextInt(h), 1, 1);
 		}
 
-		Composite old = g.getComposite();
-		g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC_OVER, 0.04f));
-		Sigil.paint(g, w - 196, h - 206, 180);
-		g.setComposite(old);
+		// The mark engraved faintly in the emptiest corner, its lines stopping short of anything
+		// written, so it never runs behind a word.
+		if (ink == null)
+		{
+			Sigil.engrave(g, w - 196, h - 206, Watermark.SIZE, Theme.alpha(Theme.GOLD, 16));
+		}
+		else
+		{
+			java.awt.Point at = Watermark.place(ink, w, h);
+			g.drawImage(Watermark.engraved(ink, w, h, at, Theme.alpha(Theme.GOLD, 16), SCALE), at.x, at.y, Watermark.SIZE, Watermark.SIZE, null);
+		}
 		g.setClip(null);
 
 		g.setStroke(new BasicStroke(1f));
@@ -90,8 +107,20 @@ public final class YearCard
 		}
 	}
 
+	/** "+26", or a plain "0" for a year with no level yet, rather than "+0". */
+	static String levels(Recap r)
+	{
+		return r.getLevelsGained() > 0 ? "+" + Format.number(r.getLevelsGained()) : "0";
+	}
+
+	/** The experience under the levels, or "none yet" for a year with none, rather than "+0 xp". */
+	static String levelsNote(Recap r)
+	{
+		return r.getXpGained() > 0 ? Format.xp(r.getXpGained()) + " xp" : "none yet";
+	}
+
 	/** Lays out and draws everything inside the frame; returns the page height it needs. */
-	private static int content(Graphics2D g, Recap r, boolean showName, ItemIcons items, Icons skills, Runnable onLoaded)
+	private static int content(Graphics2D g, Recap r, Wealth wealth, boolean showName, ItemIcons items, Icons skills, Runnable onLoaded)
 	{
 		Theme.smooth(g);
 		int x = PAD;
@@ -137,7 +166,8 @@ public final class YearCard
 		y += body.getHeight();
 		g.setFont(Theme.small());
 		g.setColor(Theme.TEXT_MUTED);
-		String when = Format.hours(r.getPlayedMs()) + " across " + Format.plural(r.getDaysPlayed(), "day", "days");
+		// The days are the first tile just below, so this line tells the hours alone.
+		String when = Format.hours(r.getPlayedMs()) + " played";
 		g.drawString(when, x + (w - small.stringWidth(when)) / 2, y + small.getAscent());
 		y += small.getHeight() + 8;
 		rule(g, x, y, w);
@@ -147,14 +177,13 @@ public final class YearCard
 		int tileH = 54;
 		StatTile.paint(g, Format.number(r.getDaysPlayed()), "Days played",
 			r.getLongestStreak() > 1 ? "best run " + r.getLongestStreak() : "", Theme.TEAL, x, y, tileW, tileH);
-		StatTile.paint(g, "+" + Format.number(r.getLevelsGained()), "Levels", Format.xp(r.getXpGained()) + " xp", Theme.GREEN,
-			x + tileW + 6, y, tileW, tileH);
+		StatTile.paint(g, levels(r), "Levels", levelsNote(r), Theme.GREEN, x + tileW + 6, y, tileW, tileH);
 		List<Recap.KillYear> bosses = r.getBosses();
-		StatTile.paint(g, Format.number(r.getKills()), "Boss kills", bosses.isEmpty() ? "" : bosses.get(0).getName(), Theme.KILLS,
+		StatTile.paint(g, Format.number(r.getKills()), "Boss kills", bosses.isEmpty() ? "none yet" : bosses.get(0).getName(), Theme.KILLS,
 			x + (tileW + 6) * 2, y, w - (tileW + 6) * 2, tileH);
 		y += tileH + 8;
 
-		y = tallies(g, r, x, y, w) + 10;
+		y = tallies(g, r, wealth, x, y, w) + 10;
 
 		header(g, "Months", r.busiestMonth() >= 0 ? "busiest " + Format.monthName(r.busiestMonth()) : null, x, y, w);
 		y += 24;
@@ -171,10 +200,17 @@ public final class YearCard
 			header(g, "Skills", null, x, top, colW);
 			left += 24;
 			long most = skillLines.get(0).getGained();
-			for (int i = 0; i < skillLines.size() && i < SKILLS; i++)
+			int shown = Math.min(SKILLS, skillLines.size());
+			// Levels go on every line or none: one row with them and three without reads as a mistake.
+			boolean levels = true;
+			for (int i = 0; i < shown; i++)
+			{
+				levels &= SkillYearRow.levelsFit(g, skillLines.get(i), colW);
+			}
+			for (int i = 0; i < shown; i++)
 			{
 				Recap.SkillYear line = skillLines.get(i);
-				SkillYearRow.paint(g, line, skills == null ? null : skills.skill(line.getSkill()), line.getGained() / (double) most, x, left, colW);
+				SkillYearRow.paint(g, line, skills == null ? null : skills.skill(line.getSkill()), line.getGained() / (double) most, x, left, colW, levels);
 				left += 30;
 			}
 		}
@@ -196,7 +232,7 @@ public final class YearCard
 		}
 		y = Math.max(left, right) + 4;
 
-		List<Entry> highlights = new ArrayList<>(r.getHighlights());
+		List<Entry> highlights = r.getHighlightsByDate(HIGHLIGHTS);
 		if (!highlights.isEmpty())
 		{
 			header(g, "Highlights", null, x, y, w);
@@ -223,7 +259,7 @@ public final class YearCard
 				FontMetrics fm = g.getFontMetrics();
 				Ui.shadowed(g, Ui.clip(e.getTitle(), fm, edge - tx), tx, y + fm.getAscent() - 2, Theme.mix(Theme.TEXT, color, 0.3));
 				g.setFont(Theme.small());
-				String detail = EntryRow.detail(e);
+				String detail = EntryRow.detail(e, r.timesOf(e));
 				String line = detail == null ? date : date + EntryRow.DOT + detail;
 				g.setColor(Theme.TEXT_MUTED);
 				g.drawString(Ui.clip(line, small, edge - tx), tx, y + fm.getAscent() + small.getAscent());
@@ -244,7 +280,7 @@ public final class YearCard
 	}
 
 	/** A row of small medallions for the year's quests, diaries, log slots, pets and clues. */
-	private static int tallies(Graphics2D g, Recap r, int x, int y, int w)
+	private static int tallies(Graphics2D g, Recap r, Wealth wealth, int x, int y, int w)
 	{
 		int[] counts = {r.getQuests(), r.getDiaries(), r.getCollection(), r.getPets(), r.getClues()};
 		String[] ones = {"quest", "diary", "log slot", "pet", "clue"};
@@ -261,6 +297,12 @@ public final class YearCard
 				keptColors.add(all[i]);
 			}
 		}
+		if (wealth != null && wealth.change() != 0 && !wealth.isPartial())
+		{
+			// Worth from Codex Ledger, when it kept the whole year.
+			kept.add(new String[]{Format.signedCompact(wealth.change()), "worth"});
+			keptColors.add(wealth.change() > 0 ? Theme.GOLD_BRIGHT : Theme.EMBER);
+		}
 		if (kept.isEmpty())
 		{
 			return y - 10;
@@ -269,7 +311,8 @@ public final class YearCard
 		Color[] colors = keptColors.toArray(new Color[0]);
 		int gap = 4;
 		// Medallions keep the size five would have, centred, so one alone does not stretch across the page.
-		float cell = (w - gap * 4) / 5f;
+		int slots = Math.max(5, items.length);
+		float cell = (w - gap * (slots - 1)) / (float) slots;
 		x += Math.round((w - (cell * items.length + gap * (items.length - 1))) / 2);
 		int h = 34;
 		g.setFont(Theme.small());

@@ -24,6 +24,8 @@ public class Segmented extends JComponent
 	private int selected;
 	private int hover = -1;
 	private IntConsumer listener;
+	/** Room a label needs around it, so it clears the lit segment's edges. */
+	private static final int PAD = 12;
 
 	public Segmented(boolean large, String... labels)
 	{
@@ -93,8 +95,43 @@ public class Segmented extends JComponent
 
 	private int indexAt(int x)
 	{
-		int w = Math.max(1, getWidth());
-		return Math.max(0, Math.min(labels.length - 1, x * labels.length / w));
+		float[] edges = edges(Math.max(1, getWidth()));
+		for (int i = 0; i < labels.length; i++)
+		{
+			if (x < edges[i + 1])
+			{
+				return i;
+			}
+		}
+		return labels.length - 1;
+	}
+
+	/**
+	 * Where each segment starts, and the last one ends. Segments share the width evenly, unless a
+	 * label would not fit its share (as "Timeline" beside three short tabs at the side panel's
+	 * width); then each takes room by the width of its label.
+	 */
+	private float[] edges(int w)
+	{
+		FontMetrics fm = getFontMetrics(getFont());
+		float[] edges = new float[labels.length + 1];
+		float seg = w / (float) labels.length;
+		boolean fits = true;
+		int sum = 0;
+		for (String label : labels)
+		{
+			int need = fm.stringWidth(label) + PAD;
+			fits &= need <= seg;
+			sum += need;
+		}
+		float x = 0;
+		for (int i = 0; i < labels.length; i++)
+		{
+			edges[i] = x;
+			x += fits ? seg : w * (fm.stringWidth(labels[i]) + PAD) / (float) sum;
+		}
+		edges[labels.length] = w;
+		return edges;
 	}
 
 	@Override
@@ -104,13 +141,19 @@ public class Segmented extends JComponent
 		Theme.smooth(g);
 		int w = getWidth();
 		int h = getHeight();
-		float seg = w / (float) labels.length;
+		float[] edges = edges(w);
 
 		RoundRectangle2D strip = new RoundRectangle2D.Float(0.5f, 0.5f, w - 1, h - 1, 8, 8);
 		g.setColor(Theme.INK_DEEP);
 		g.fill(strip);
 
-		float x = (float) (slide.get() * seg);
+		// The lit segment slides between the edges of the two it is passing over.
+		double at = Math.max(0, Math.min(labels.length - 1, slide.get()));
+		int from = (int) Math.floor(at);
+		int to = Math.min(labels.length - 1, from + 1);
+		float t = (float) (at - from);
+		float x = edges[from] + (edges[to] - edges[from]) * t;
+		float seg = (edges[from + 1] - edges[from]) + ((edges[to + 1] - edges[to]) - (edges[from + 1] - edges[from])) * t;
 		RoundRectangle2D lit = new RoundRectangle2D.Float(x + 2, 2, seg - 4, h - 4, 6, 6);
 		g.setPaint(new GradientPaint(0, 2, Theme.CARD_TOP, 0, h, Theme.mix(Theme.CARD_TOP, Theme.GOLD_DIM, 0.35)));
 		g.fill(lit);
@@ -123,7 +166,7 @@ public class Segmented extends JComponent
 		FontMetrics fm = g.getFontMetrics();
 		for (int i = 0; i < labels.length; i++)
 		{
-			int tx = Math.round(i * seg + (seg - fm.stringWidth(labels[i])) / 2);
+			int tx = Math.round(edges[i] + (edges[i + 1] - edges[i] - fm.stringWidth(labels[i])) / 2);
 			int ty = (h + fm.getAscent()) / 2 - (large ? 2 : 1);
 			java.awt.Color color = i == selected ? Theme.GOLD_BRIGHT : i == hover ? Theme.TEXT : Theme.TEXT_MUTED;
 			Ui.shadowed(g, labels[i], tx, ty, color);

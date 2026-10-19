@@ -1,5 +1,8 @@
 package com.codex.annals.ui;
 
+import java.math.BigDecimal;
+import java.math.MathContext;
+import java.math.RoundingMode;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -17,36 +20,17 @@ public final class Format
 	private static final DateTimeFormatter MONTH = DateTimeFormatter.ofPattern("MMMM yyyy", Locale.ENGLISH);
 	private static final String[] MONTHS = {"January", "February", "March", "April", "May", "June", "July", "August",
 		"September", "October", "November", "December"};
+	private static final MathContext THREE = new MathContext(3, RoundingMode.HALF_UP);
 	private static final DateTimeFormatter FILE = DateTimeFormatter.ofPattern("yyyy-MM-dd HH-mm", Locale.ENGLISH);
 
 	private Format()
 	{
 	}
 
-	/** "8,240", "41.2k", "412k", "1.24M". */
+	/** "8,240", "41k", "412k", "1.2M", "41.0M", "412.4M", "1.50B": the suite's rule, as every Codex plugin writes amounts. */
 	public static String amount(long n)
 	{
-		if (n < 10_000)
-		{
-			return String.format(Locale.ENGLISH, "%,d", n);
-		}
-		if (n < 100_000)
-		{
-			return trim(n / 1_000.0, 1) + "k";
-		}
-		if (n < 1_000_000)
-		{
-			return Math.round(n / 1_000.0) + "k";
-		}
-		if (n < 10_000_000)
-		{
-			return trim(n / 1_000_000.0, 2) + "M";
-		}
-		if (n < 1_000_000_000)
-		{
-			return trim(n / 1_000_000.0, 1) + "M";
-		}
-		return trim(n / 1_000_000_000.0, 2) + "B";
+		return com.codex.annals.core.Amount.of(n);
 	}
 
 	/** Gained experience with its sign: "+412k". */
@@ -55,19 +39,26 @@ public final class Format
 		return "+" + amount(Math.max(0, xp));
 	}
 
+	/** A change in coins with its sign: "+312.0M", "-4.1M", "0". */
+	public static String signedCoins(long gp)
+	{
+		return gp > 0 ? "+" + amount(gp) : gp < 0 ? "-" + amount(-gp) : "0";
+	}
+
+	/** A change in coins with its sign, for tight spaces: "+248.4M", "-4.1M". */
+	public static String signedCompact(long gp)
+	{
+		return signedCoins(gp);
+	}
+
 	public static String coins(long gp)
 	{
 		return amount(Math.max(0, gp));
 	}
 
-	private static String trim(double value, int places)
+	private static String fixed(double value, int places)
 	{
-		String text = String.format(Locale.ENGLISH, "%." + places + "f", value);
-		while (text.contains(".") && (text.endsWith("0") || text.endsWith(".")))
-		{
-			text = text.substring(0, text.length() - 1);
-		}
-		return text;
+		return String.format(Locale.ENGLISH, "%." + places + "f", value);
 	}
 
 	/** "312k/hr", or "" when there is no rate yet. */
@@ -89,6 +80,16 @@ public final class Format
 			return minutes + "m";
 		}
 		return minutes / 60 + "h " + minutes % 60 + "m";
+	}
+
+	/**
+	 * Time played, short, for a ledger line: "5m" under an hour, then whole hours, "101h", so a
+	 * first day reads 5m beside "5 minutes played" rather than 0.
+	 */
+	public static String played(long ms)
+	{
+		long minutes = Math.max(0, ms) / 60_000;
+		return minutes < 60 ? minutes + "m" : String.format(Locale.ENGLISH, "%,dh", minutes / 60);
 	}
 
 	/** "1:42" for a session clock. */

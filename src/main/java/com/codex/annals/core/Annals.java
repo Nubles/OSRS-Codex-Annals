@@ -1,6 +1,13 @@
 package com.codex.annals.core;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonToken;
+import java.io.IOException;
+import java.io.StringReader;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -19,6 +26,8 @@ public class Annals
 {
 	/** More than this and the least telling old entries make room; ordinary levels go first. */
 	static final int MAX_ENTRIES = 2000;
+	/** Five years of weeks; the oldest go first. */
+	static final int MAX_WEEKS = 260;
 	private static final int[] KC_MILESTONES = {50, 100, 250, 500, 1000, 2000, 5000, 10000};
 	private static final long[] SKILL_XP = {50_000_000L, 100_000_000L, 200_000_000L};
 	private static final long MAX_XP = 200_000_000L;
@@ -38,6 +47,12 @@ public class Annals
 	Map<String, Integer> levels = new LinkedHashMap<>();
 	Map<String, Long> xp = new LinkedHashMap<>();
 	int combat;
+	/** Where the skills stood at the start of each recent day, for the pace. */
+	Pace pace = new Pace();
+	/** Week by week, oldest first, for the chapters and the weekly look back; null in a save from before weeks were kept. */
+	List<Week> weeks;
+	/** The Monday of the last week told in chat at login, so it is told once per account. */
+	long toldWeek;
 
 	public boolean isBegun()
 	{
@@ -83,9 +98,185 @@ public class Annals
 		return null;
 	}
 
+	/** Each skill's experience as last read. Read only. */
+	public Map<String, Long> getExperience()
+	{
+		return Collections.unmodifiableMap(xp);
+	}
+
 	public Map<String, Integer> getKillCounts()
 	{
 		return Collections.unmodifiableMap(kc);
+	}
+
+	/** A saved annals as read back: what could be kept, and whether anything was left out. */
+	public static final class Loaded
+	{
+		/** What was read; fresh, unbegun annals when nothing could be. Never null. */
+		public final Annals annals;
+		/** True when the save was not read whole, so it is worth setting aside as it was. */
+		public final boolean damaged;
+
+		Loaded(Annals annals, boolean damaged)
+		{
+			this.annals = annals;
+			this.damaged = damaged;
+		}
+	}
+
+	/**
+	 * Reads saved annals. A save that reads whole is repaired and kept; one that does not (an
+	 * entry of the wrong shape, a figure too big for its field, a save cut short) keeps every
+	 * entry, year, week and figure that still reads, so one damaged line never costs the history.
+	 */
+	public static Loaded read(Gson gson, String saved)
+	{
+		if (saved == null || saved.trim().isEmpty())
+		{
+			return new Loaded(new Annals(), false);
+		}
+		try
+		{
+			Annals whole = gson.fromJson(saved, Annals.class);
+			if (whole != null)
+			{
+				// It read, but a field or an entry a later version keeps would be dropped by the next save.
+				whole.repair();
+				return new Loaded(whole, Unread.any(gson, saved, whole));
+			}
+		}
+		catch (RuntimeException e)
+		{
+			// Read it piece by piece below.
+		}
+		Annals a = new Annals();
+		JsonReader in = new JsonReader(new StringReader(saved));
+		in.setLenient(true);
+		try
+		{
+			if (in.peek() == JsonToken.BEGIN_OBJECT)
+			{
+				in.beginObject();
+				while (in.hasNext())
+				{
+					String name = in.nextName();
+					if (("entries".equals(name) || "years".equals(name) || "weeks".equals(name)) && in.peek() == JsonToken.BEGIN_ARRAY)
+					{
+						if ("weeks".equals(name))
+						{
+							a.weeks = new ArrayList<>();
+						}
+						in.beginArray();
+						while (in.hasNext())
+						{
+							JsonElement item = gson.fromJson(in, JsonElement.class);
+							if ("entries".equals(name))
+							{
+								add(a.entries, piece(gson, item, Entry.class));
+							}
+							else if ("years".equals(name))
+							{
+								add(a.years, piece(gson, item, Year.class));
+							}
+							else
+							{
+								add(a.weeks, piece(gson, item, Week.class));
+							}
+						}
+						in.endArray();
+						continue;
+					}
+					a.field(gson, name, gson.fromJson(in, JsonElement.class));
+				}
+			}
+		}
+		catch (IOException | RuntimeException e)
+		{
+			// A save cut short keeps everything before the cut.
+		}
+		return new Loaded(a.repair(), true);
+	}
+
+	private static <T> void add(List<T> list, T item)
+	{
+		if (item != null)
+		{
+			list.add(item);
+		}
+	}
+
+	/** One saved entry, year or week, or null when it does not read. */
+	private static <T> T piece(Gson gson, JsonElement item, Class<T> type)
+	{
+		try
+		{
+			return item == null || !item.isJsonObject() ? null : gson.fromJson(item, type);
+		}
+		catch (RuntimeException e)
+		{
+			return null;
+		}
+	}
+
+	/** Sets one of the annals' own figures from a damaged save, keeping each entry of a map that reads. */
+	private void field(Gson gson, String name, JsonElement value)
+	{
+		try
+		{
+			switch (name)
+			{
+				case "begunAt":
+					begunAt = value.getAsLong();
+					break;
+				case "toldWeek":
+					toldWeek = value.getAsLong();
+					break;
+				case "player":
+					player = value.isJsonPrimitive() ? value.getAsString() : null;
+					break;
+				case "combat":
+					combat = value.getAsInt();
+					break;
+				case "baseline":
+					baseline = gson.fromJson(value, Baseline.class);
+					break;
+				case "pace":
+					pace = gson.fromJson(value, Pace.class);
+					break;
+				case "kc":
+				case "levels":
+				case "xp":
+					if (!value.isJsonObject())
+					{
+						break;
+					}
+					for (Map.Entry<String, JsonElement> e : value.getAsJsonObject().entrySet())
+					{
+						try
+						{
+							if ("xp".equals(name))
+							{
+								xp.put(e.getKey(), e.getValue().getAsLong());
+							}
+							else
+							{
+								("kc".equals(name) ? kc : levels).put(e.getKey(), e.getValue().getAsInt());
+							}
+						}
+						catch (RuntimeException ignored)
+						{
+							// That one figure is lost; the rest are not.
+						}
+					}
+					break;
+				default:
+					// A field a later version keeps, unknown here.
+			}
+		}
+		catch (RuntimeException e)
+		{
+			// This field is lost; the rest are not.
+		}
 	}
 
 	/** Makes sure every field exists after Gson has read an older or damaged save. */
@@ -95,7 +286,8 @@ public class Annals
 		{
 			entries = new ArrayList<>();
 		}
-		entries.removeIf(e -> e == null);
+		// An entry of a kind this version does not know, or with nothing to call it, cannot be told.
+		entries.removeIf(e -> e == null || e.getKind() == null || e.getTitle() == null);
 		for (Entry e : entries)
 		{
 			e.compact();
@@ -104,7 +296,7 @@ public class Annals
 		{
 			years = new ArrayList<>();
 		}
-		years.removeIf(y -> y == null);
+		years.removeIf(y -> y == null || y.year < Year.MIN_YEAR || y.year > Year.MAX_YEAR);
 		for (Year y : years)
 		{
 			y.repair();
@@ -120,6 +312,52 @@ public class Annals
 		if (xp == null)
 		{
 			xp = new LinkedHashMap<>();
+		}
+		// A figure missing or below zero is damage; read as it is, it stops the Ahead tab drawing.
+		kc.entrySet().removeIf(e -> e.getKey() == null || e.getValue() == null || e.getValue() < 0);
+		levels.entrySet().removeIf(e -> e.getKey() == null || e.getValue() == null || e.getValue() < 1);
+		xp.entrySet().removeIf(e -> e.getKey() == null || e.getValue() == null || e.getValue() < 0);
+		combat = Math.max(0, combat);
+		if (pace == null)
+		{
+			pace = new Pace();
+		}
+		pace.repair();
+		if (weeks == null)
+		{
+			// A save from before weeks were kept: the last few weeks can still be told from the daily readings.
+			weeks = new ArrayList<>();
+			backfill();
+		}
+		weeks.removeIf(w -> w == null);
+		for (Week w : weeks)
+		{
+			w.repair();
+		}
+		weeks.sort((a, b) -> Long.compare(a.w, b.w));
+		while (weeks.size() > MAX_WEEKS)
+		{
+			weeks.remove(0);
+		}
+		// A save holding more than the annals keep, damaged or edited by hand, is brought within it.
+		compact();
+		if (begunAt <= 0 && !entries.isEmpty())
+		{
+			// The day they began was lost to damage; the history says when it was, so the next
+			// login does not begin the annals a second time over it.
+			long first = Long.MAX_VALUE;
+			for (Entry e : entries)
+			{
+				first = e.getKind() == Entry.Kind.BEGIN ? Math.min(first, e.getAt()) : first;
+			}
+			if (first == Long.MAX_VALUE)
+			{
+				for (Entry e : entries)
+				{
+					first = Math.min(first, e.getAt());
+				}
+			}
+			begunAt = Math.max(1, first);
 		}
 		return this;
 	}
@@ -159,6 +397,7 @@ public class Annals
 				year.endLevel.put(skill, level);
 			}
 		}
+		pace.note(Instant.ofEpochMilli(now).atZone(zone).toLocalDate().toEpochDay(), xp);
 		if (!isBegun())
 		{
 			begunAt = now;
@@ -171,6 +410,140 @@ public class Annals
 			written.add(add(new Entry(Entry.Kind.BEGIN, now, "The annals begin", detail)));
 		}
 		return written;
+	}
+
+	/**
+	 * Hours played a day over about the last four weeks, days off included, from the weeks kept;
+	 * this year's so far until the annals have a week of play to go on. 0 when nothing is known.
+	 */
+	public double hoursPerDay(LocalDate today, ZoneId zone)
+	{
+		long begun = begunAt > 0 ? Instant.ofEpochMilli(begunAt).atZone(zone).toLocalDate().toEpochDay() : today.toEpochDay();
+		// Whole weeks: from the Monday of the week four weeks back, or the day the annals began.
+		long monday = Week.mondayOf(today.minusDays(Pace.DAYS - 1));
+		long start = Math.max(monday, Math.min(begun, today.toEpochDay()));
+		long ms = 0;
+		if (weeks != null)
+		{
+			for (Week w : weeks)
+			{
+				if (w.w >= monday && w.w <= today.toEpochDay())
+				{
+					ms += w.playedMs;
+				}
+			}
+		}
+		long days = today.toEpochDay() - start + 1;
+		if (weeks != null && days >= Ahead.MIN_DAYS)
+		{
+			return ms / 3_600_000.0 / days;
+		}
+		Year year = getYear(today.getYear());
+		if (year == null)
+		{
+			return 0;
+		}
+		long yearStart = Math.max(today.withDayOfYear(1).toEpochDay(), Math.min(begun, today.toEpochDay()));
+		long yearDays = today.toEpochDay() - yearStart + 1;
+		return yearDays < Ahead.MIN_DAYS ? 0 : year.playedMs / 3_600_000.0 / yearDays;
+	}
+
+	/** Every week kept, oldest first. Read only. */
+	public List<Week> getWeeks()
+	{
+		return weeks == null ? Collections.emptyList() : Collections.unmodifiableList(weeks);
+	}
+
+	/** The Monday of the last week told in chat, as an epoch day. */
+	public long getToldWeek()
+	{
+		return toldWeek;
+	}
+
+	/** Notes that the week beginning on that Monday has been told in chat. */
+	public void told(long monday)
+	{
+		toldWeek = Math.max(toldWeek, monday);
+	}
+
+	/** The week a moment falls in, begun if it is new. */
+	Week week(long now, ZoneId zone)
+	{
+		if (weeks == null)
+		{
+			weeks = new ArrayList<>();
+		}
+		long monday = Week.mondayOf(Instant.ofEpochMilli(now).atZone(zone).toLocalDate());
+		Week last = weeks.isEmpty() ? null : weeks.get(weeks.size() - 1);
+		if (last != null && last.w == monday)
+		{
+			return last;
+		}
+		for (Week w : weeks)
+		{
+			if (w.w == monday)
+			{
+				return w;
+			}
+		}
+		Week week = new Week(monday);
+		weeks.add(week);
+		weeks.sort((a, b) -> Long.compare(a.w, b.w));
+		while (weeks.size() > MAX_WEEKS)
+		{
+			weeks.remove(0);
+		}
+		return week;
+	}
+
+	/**
+	 * Fills the weeks from the daily readings the pace keeps, for a save from before weeks were
+	 * kept: the experience between one day's first reading and the next is put on the first day's week,
+	 * unless the two readings are days apart in different weeks.
+	 */
+	private void backfill()
+	{
+		List<Pace.Snap> days = pace.days;
+		for (int i = 0; i + 1 < days.size(); i++)
+		{
+			Pace.Snap from = days.get(i);
+			Pace.Snap to = days.get(i + 1);
+			if (to.d - from.d > 1 && Week.mondayOf(java.time.LocalDate.ofEpochDay(to.d)) != Week.mondayOf(java.time.LocalDate.ofEpochDay(from.d)))
+			{
+				// A break across weeks: what was done in it cannot be put on any one week.
+				continue;
+			}
+			Week week = null;
+			for (Map.Entry<String, Long> e : to.xp.entrySet())
+			{
+				Long before = from.xp.get(e.getKey());
+				if (before == null || before <= 0 || e.getValue() <= before)
+				{
+					continue;
+				}
+				if (week == null)
+				{
+					week = weekOn(Week.mondayOf(java.time.LocalDate.ofEpochDay(from.d)));
+				}
+				week.xp.merge(e.getKey(), e.getValue() - before, Long::sum);
+				week.end.merge(e.getKey(), e.getValue(), Math::max);
+			}
+		}
+	}
+
+	private Week weekOn(long monday)
+	{
+		for (Week w : weeks)
+		{
+			if (w.w == monday)
+			{
+				return w;
+			}
+		}
+		Week week = new Week(monday);
+		weeks.add(week);
+		weeks.sort((a, b) -> Long.compare(a.w, b.w));
+		return week;
 	}
 
 	/** A skill's experience or level changed. */
@@ -188,11 +561,19 @@ public class Annals
 			// Not a real reading: experience is never lost outside of a world that takes it, and never all of it.
 			return written;
 		}
+		// The day's first reading is where the skills stood before this change, so today's experience counts it.
+		pace.note(Instant.ofEpochMilli(now).atZone(zone).toLocalDate().toEpochDay(), xp);
 		Year year = year(now, zone);
 		year.startXp.putIfAbsent(skill, xpBefore == null ? xpNow : xpBefore);
 		year.startLevel.putIfAbsent(skill, levelBefore == null ? levelNow : levelBefore);
 		year.endXp.put(skill, xpNow);
 		year.endLevel.put(skill, levelNow);
+		if (xpBefore != null && xpNow > xpBefore)
+		{
+			Week week = week(now, zone);
+			week.xp.merge(skill, xpNow - xpBefore, Long::sum);
+			week.end.put(skill, xpNow);
+		}
 		xp.put(skill, xpNow);
 		levels.put(skill, levelNow);
 		if (xpBefore == null || levelBefore == null)
@@ -216,7 +597,7 @@ public class Annals
 				{
 					maxed += level >= 99 ? 1 : 0;
 				}
-				String detail = maxed == 1 ? "Your first 99" : maxed == levels.size() ? "Every skill at 99" : "99 number " + maxed;
+				String detail = maxed == 1 ? "Your first 99" : maxed == levels.size() ? "Every skill at 99" : "Your " + Keepsake.ordinal(maxed) + " 99";
 				written.add(add(new Entry(Entry.Kind.MAX, now, "99 " + skill, detail).skill(skill, 99)));
 			}
 			else if (everyLevel || levelNow % 10 == 0)
@@ -299,6 +680,18 @@ public class Annals
 			return null;
 		}
 		year(now, zone).kills.merge(name, gained, Integer::sum);
+		week(now, zone).kills.merge(name, gained, Integer::sum);
+		long day = Instant.ofEpochMilli(now).atZone(zone).toLocalDate().toEpochDay();
+		pace.note(day, xp);
+		Pace.Snap today = pace.on(day);
+		if (today != null)
+		{
+			if (today.k == null)
+			{
+				today.k = new LinkedHashMap<>();
+			}
+			today.k.merge(name, gained, Integer::sum);
+		}
 		if (count == 1)
 		{
 			return add(new Entry(Entry.Kind.BOSS, now, "First " + name, "Kill count 1").skill(null, 1));
@@ -492,7 +885,14 @@ public class Annals
 		}
 		Year year = year(now, zone);
 		year.playedMs += ms;
+		week(now, zone).playedMs += ms;
 		long day = Instant.ofEpochMilli(now).atZone(zone).toLocalDate().toEpochDay();
+		pace.note(day, xp);
+		Pace.Snap today = pace.on(day);
+		if (today != null)
+		{
+			today.ms += ms;
+		}
 		if (year.days.isEmpty() || year.days.get(year.days.size() - 1) != day)
 		{
 			if (!year.days.contains(day))
@@ -560,27 +960,40 @@ public class Annals
 	/** Drops the least telling entry, the oldest of them on a tie, until the annals fit. */
 	private void compact()
 	{
-		while (entries.size() > MAX_ENTRIES)
+		int over = entries.size() - MAX_ENTRIES;
+		if (over <= 0)
 		{
-			int worst = -1;
-			for (int i = 0; i < entries.size() - 1; i++)
-			{
-				Entry e = entries.get(i);
-				if (e.getKind() == Entry.Kind.BEGIN)
-				{
-					continue;
-				}
-				if (worst < 0 || e.rank() < entries.get(worst).rank())
-				{
-					worst = i;
-				}
-			}
-			if (worst < 0)
-			{
-				return;
-			}
-			entries.remove(worst);
+			return;
 		}
+		// The least telling go first, the oldest of them first; never the beginning or the newest.
+		// Ranks do not change as entries go, so all that must go are found in one pass.
+		List<Integer> order = new ArrayList<>();
+		for (int i = 0; i < entries.size() - 1; i++)
+		{
+			if (entries.get(i).getKind() != Entry.Kind.BEGIN)
+			{
+				order.add(i);
+			}
+		}
+		order.sort((x, y) ->
+		{
+			int byRank = Double.compare(entries.get(x).rank(), entries.get(y).rank());
+			return byRank != 0 ? byRank : Integer.compare(x, y);
+		});
+		boolean[] drop = new boolean[entries.size()];
+		for (int k = 0; k < Math.min(over, order.size()); k++)
+		{
+			drop[order.get(k)] = true;
+		}
+		List<Entry> kept = new ArrayList<>(MAX_ENTRIES);
+		for (int i = 0; i < entries.size(); i++)
+		{
+			if (!drop[i])
+			{
+				kept.add(entries.get(i));
+			}
+		}
+		entries = kept;
 	}
 
 	/** The total experience mark crossed between two readings, or 0. */

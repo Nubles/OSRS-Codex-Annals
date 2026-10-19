@@ -67,6 +67,17 @@ public class AnnalsTest
 	}
 
 	@Test
+	public void namesEachLater99ByItsPlace()
+	{
+		long now = at(2026, 3, 12, 10);
+		Annals annals = begun(now, 98, 12_000_000L);
+		annals.stat("Fishing", 300_000L, 60, now + 30_000, UTC, true);
+		assertEquals("Your first 99", annals.stat("Slayer", 13_034_431L, 99, now + 60_000, UTC, true).get(0).getDetail());
+		assertEquals("Your 2nd 99", annals.stat("Mining", 13_034_431L, 99, now + 90_000, UTC, true).get(0).getDetail());
+		assertEquals("Every skill at 99", annals.stat("Fishing", 13_034_431L, 99, now + 120_000, UTC, true).get(0).getDetail());
+	}
+
+	@Test
 	public void writesTotalAndExperienceMilestones()
 	{
 		long now = at(2026, 3, 12, 10);

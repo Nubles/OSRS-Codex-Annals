@@ -1,8 +1,14 @@
 package com.codex.annals.ui;
 
+import com.codex.annals.core.Ahead;
 import com.codex.annals.core.Annals;
+import com.codex.annals.core.Chapters;
 import com.codex.annals.core.Entry;
 import com.codex.annals.core.Recap;
+import com.codex.annals.core.Today;
+import com.codex.annals.core.Goals;
+import com.codex.annals.core.Keepsake;
+import com.codex.annals.core.Wealth;
 import com.codex.annals.core.Year;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
@@ -21,16 +27,21 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 import net.runelite.client.ui.PluginPanel;
 
 /**
- * The Codex Annals side panel: the crest, then three pages. Timeline is the account's whole
- * history, Year is one year told in full, and Card is that year as a picture to save or copy.
+ * The Codex Annals side panel: the crest, then four pages. Timeline is the account's whole
+ * history, Year is one year told in full, Ahead is when the next milestones fall at the pace the
+ * account keeps, and Card is that year as a picture to save or copy.
  */
 public class AnnalsPanel extends PluginPanel
 {
-	private static final String[] TABS = {"timeline", "year", "card"};
+	private static final String[] TABS = {"timeline", "year", "ahead", "card"};
+	private static final int YEAR = 1;
+	private static final int AHEAD = 2;
+	private static final int CARD = 3;
 	private static final int PAGE = 120;
 	/** Up to this many years sit side by side as tabs; beyond it the chooser steps from year to year. */
 	private static final int YEAR_TABS = 4;
@@ -39,13 +50,18 @@ public class AnnalsPanel extends PluginPanel
 	private final Icons icons;
 	private final CardActions actions;
 	private final Crest crest = new Crest();
-	private final Segmented tabs = new Segmented(true, "Timeline", "Year", "Card");
+	private final Segmented tabs = new Segmented(true, "Timeline", "Year", "Ahead", "Card");
 	private final Segmented chapters = new Segmented(false, TimelineView.CHAPTERS);
+	private final SearchField search = new SearchField("Search the annals", this::searched);
 	private final CardLayout cards = new CardLayout();
 	private final JPanel content = new JPanel(cards);
 	private final JScrollPane timeline = scroller();
 	private final JScrollPane year = scroller();
+	private final JScrollPane ahead = scroller();
 	private final JScrollPane card = scroller();
+	/** Codex Ledger's saved worth, when that plugin is kept too. */
+	private Wealth.Saved wealth;
+	private List<Goals.Goal> goals = Collections.emptyList();
 
 	private Annals annals;
 	private ZoneId zone = ZoneId.systemDefault();
@@ -57,10 +73,24 @@ public class AnnalsPanel extends PluginPanel
 	private boolean stale;
 	private int limit = PAGE;
 	private boolean showName = true;
+	/** Whether shared cards print the account's worth from Codex Ledger; the panel shows it either way. */
+	private boolean showWorth;
 	private int tab;
 	private String cardNote;
 	private BufferedImage cardImage;
+	/** The moment the Card tab shows as a keepsake instead of the year, or null. */
+	private Entry keepsake;
 	private boolean refreshPending;
+	/** The day so far, kept across rebuilds so its figures move without the timeline being built again. */
+	private final TodayCard today = new TodayCard();
+	/** The day the pages were last built on; a page built yesterday says the wrong "today". */
+	private LocalDate builtOn;
+	/** Rebuilds the pages just after midnight, so the calendar, the day so far and the forecasts turn over. */
+	private final Timer midnight = new Timer(0, e -> dayTurned());
+	/** Whether the panel is open in the sidebar; read by the client thread, so it knows when a fresh copy is worth making. */
+	private volatile boolean open;
+	private Runnable onOpen = () -> { };
+	private boolean disposed;
 
 	public AnnalsPanel(ItemIcons items, Icons icons, CardActions actions)
 	{
@@ -84,7 +114,8 @@ public class AnnalsPanel extends PluginPanel
 		content.setOpaque(false);
 		content.add(timeline, TABS[0]);
 		content.add(year, TABS[1]);
-		content.add(card, TABS[2]);
+		content.add(ahead, TABS[2]);
+		content.add(card, TABS[3]);
 		add(content, BorderLayout.CENTER);
 
 		tabs.onChange(this::showTab);
@@ -94,7 +125,56 @@ public class AnnalsPanel extends PluginPanel
 			rebuildTimeline();
 			SwingUtilities.invokeLater(() -> timeline.getVerticalScrollBar().setValue(0));
 		});
+		midnight.setRepeats(false);
+		armMidnight();
 		rebuildAll();
+	}
+
+	/** Sets the timer for a moment after the next midnight in the panel's time zone. */
+	private void armMidnight()
+	{
+		if (disposed)
+		{
+			// An update queued before the plugin shut down must not start the timer again.
+			return;
+		}
+		long wait = Today.untilTomorrow(System.currentTimeMillis(), zone) + 1_000;
+		midnight.setInitialDelay((int) Math.min(Integer.MAX_VALUE, wait));
+		midnight.restart();
+	}
+
+	/** Midnight passed: what each page calls today has moved on, whether or not anything else did. */
+	private void dayTurned()
+	{
+		armMidnight();
+		if (isShowing())
+		{
+			rebuildAll();
+		}
+		else
+		{
+			stale = true;
+		}
+	}
+
+	/** Stops the midnight timer; called when the plugin shuts down. */
+	public void dispose()
+	{
+		disposed = true;
+		midnight.stop();
+	}
+
+	/** Called on the Swing thread when the panel opens, to ask for the annals as they are now. */
+	public void onOpen(Runnable onOpen)
+	{
+		this.onOpen = onOpen;
+	}
+
+	/** Whether the panel is open, so a copy of the annals made for it would be seen. Any thread. */
+	public boolean isOpen()
+	{
+		// Showing without having been told it opened would leave it stuck on an old copy; either will do.
+		return open || isShowing();
 	}
 
 	private static JScrollPane scroller()
@@ -132,16 +212,25 @@ public class AnnalsPanel extends PluginPanel
 			stale = true;
 			return;
 		}
+		// The day so far moves with the clock and is filled in place; the timeline is rebuilt only when its entries change.
 		rebuildAll();
 	}
 
 	@Override
 	public void onActivate()
 	{
-		if (stale)
+		open = true;
+		if (stale || !LocalDate.now(zone).equals(builtOn))
 		{
 			rebuildAll();
 		}
+		onOpen.run();
+	}
+
+	@Override
+	public void onDeactivate()
+	{
+		open = false;
 	}
 
 	/** Called on the Swing thread with an entry the player chose to strike from the annals. */
@@ -163,7 +252,7 @@ public class AnnalsPanel extends PluginPanel
 		IntConsumer choose = i ->
 		{
 			yearIndex = i;
-			if (tab == 2)
+			if (tab == CARD)
 			{
 				rebuildCard();
 			}
@@ -190,10 +279,25 @@ public class AnnalsPanel extends PluginPanel
 	public void setShowName(boolean showName)
 	{
 		this.showName = showName;
-		if (tab == 2)
+		if (tab == CARD)
 		{
 			rebuildCard();
 		}
+	}
+
+	public void setShowWorth(boolean showWorth)
+	{
+		this.showWorth = showWorth;
+		if (tab == CARD)
+		{
+			rebuildCard();
+		}
+	}
+
+	/** The card on the Card tab as last drawn, or null. */
+	BufferedImage card()
+	{
+		return cardImage;
 	}
 
 	/** A line under the card's buttons, such as where it was saved. */
@@ -206,19 +310,35 @@ public class AnnalsPanel extends PluginPanel
 	/** Opens one tab, for previews and tests. */
 	public void showTab(int index)
 	{
+		if (index != CARD)
+		{
+			// Leaving the card page puts the year card back for the next visit.
+			keepsake = null;
+		}
 		tab = index;
 		tabs.setSelected(index, false);
 		cards.show(content, TABS[index]);
-		if (index == 2)
+		if (index == CARD)
 		{
 			cardNote = null;
 			rebuildCard();
 		}
-		else if (index == 1)
+		else if (index == AHEAD)
+		{
+			rebuildAhead();
+		}
+		else if (index == YEAR)
 		{
 			// The chosen year may have changed on the card page.
 			rebuildYear();
 		}
+	}
+
+	/** Shows a keepsake card of one moment on the Card tab; from a row's right-click menu. */
+	public void keep(Entry entry)
+	{
+		keepsake = entry;
+		showTab(CARD);
 	}
 
 	/** Picks a chapter of the timeline, for previews and tests. */
@@ -230,6 +350,14 @@ public class AnnalsPanel extends PluginPanel
 	private void rebuildAll()
 	{
 		stale = false;
+		LocalDate day = LocalDate.now(zone);
+		if (!day.equals(builtOn))
+		{
+			// A new day changes what the timeline's cards say even when no entry did.
+			builtOn = day;
+			armMidnight();
+		}
+		today.show(Today.of(annals, day, zone));
 		Year thisYear = annals == null ? null : annals.getYear(LocalDate.now(zone).getYear());
 		crest.update(playerName != null ? playerName : annals == null ? null : annals.getPlayer(),
 			annals == null ? 0 : annals.getBegunAt(),
@@ -237,11 +365,60 @@ public class AnnalsPanel extends PluginPanel
 			thisYear == null ? 0 : thisYear.getDays().size(),
 			thisYear == null ? 0 : thisYear.getPlayedMs());
 		rebuildTimeline();
-		rebuildYear();
-		if (tab == 2)
+		if (tab == YEAR)
+		{
+			rebuildYear();
+		}
+		else if (tab == AHEAD)
+		{
+			rebuildAhead();
+		}
+		else if (tab == CARD)
 		{
 			rebuildCard();
 		}
+	}
+
+	/** The search box changed: show the first page of what it finds, and keep typing where it was. */
+	private void searched()
+	{
+		boolean typing = search.isFocusOwner();
+		limit = PAGE;
+		rebuildTimeline();
+		SwingUtilities.invokeLater(() ->
+		{
+			timeline.getVerticalScrollBar().setValue(0);
+			if (typing)
+			{
+				search.requestFocusInWindow();
+			}
+		});
+	}
+
+	/** The goals pinned in Codex Navigator; dated on the Ahead tab at the next rebuild. */
+	public void setGoals(List<Goals.Goal> goals)
+	{
+		this.goals = goals == null ? Collections.emptyList() : goals;
+	}
+
+	/** Codex Ledger's saved worth, or null when it is not kept; shown at the next rebuild. */
+	public void setWealth(Wealth.Saved wealth)
+	{
+		this.wealth = wealth;
+	}
+
+	private Wealth wealthOf(Recap r)
+	{
+		return r == null ? null : Wealth.of(wealth, r.getYear(), zone, r.getYear() == LocalDate.now(zone).getYear());
+	}
+
+	private void rebuildAhead()
+	{
+		LocalDate today = LocalDate.now(zone);
+		Ahead forecast = annals == null ? null : Ahead.of(annals, today, zone);
+		List<Goals.Forecast> dated = annals == null ? Collections.emptyList()
+			: Goals.forecast(goals, forecast, today, annals.hoursPerDay(today, zone));
+		replace(ahead, AheadView.build(forecast, today, annals == null ? Collections.emptyMap() : annals.getExperience(), icons, dated));
 	}
 
 	/** What the timeline was last built from; when only the clock moved, it is left as it is. */
@@ -255,11 +432,17 @@ public class AnnalsPanel extends PluginPanel
 			return;
 		}
 		timelineKey = key;
-		replace(timeline, TimelineView.build(annals, zone, chapters, limit, () ->
+		// The search box moves to the new page; a new entry arriving mid-search must not take the typing away.
+		boolean typing = search.isFocusOwner();
+		replace(timeline, TimelineView.build(annals, zone, chapters, search, limit, () ->
 		{
 			limit += PAGE;
 			rebuildTimeline();
-		}, items, icons, this::refreshLater, strike));
+		}, items, icons, this::refreshLater, strike, this::keep, today));
+		if (typing)
+		{
+			search.requestFocusInWindow();
+		}
 	}
 
 	private String timelineKey()
@@ -272,7 +455,9 @@ public class AnnalsPanel extends PluginPanel
 				sum = sum * 31 + (e.getAt() ^ e.getTitle().hashCode() ^ e.getItemId() ^ (e.getDetail() == null ? 0 : e.getDetail().hashCode()));
 			}
 		}
-		return (annals == null ? "none" : annals.getEntries().size() + ":" + sum) + "/" + chapters.getSelected() + "/" + limit + "/" + zone;
+		// The last week's card changes only when the week turns, which the date covers.
+		return (annals == null ? "none" : annals.getEntries().size() + ":" + sum) + "/" + chapters.getSelected() + "/" + limit + "/" + zone + "/" + LocalDate.now(zone)
+			+ "/" + search.query() + "/" + (annals == null ? 0 : annals.getWeeks().size());
 	}
 
 	private Recap recap()
@@ -289,12 +474,32 @@ public class AnnalsPanel extends PluginPanel
 		Recap r = recap();
 		LocalDate today = LocalDate.now(zone);
 		int current = r != null && r.getYear() == today.getYear() ? today.getMonthValue() - 1 : -1;
-		replace(year, YearView.build(r, yearChooser(), current, zone, items, icons, this::refreshLater));
+		Recap before = r == null || annals == null ? null : Recap.of(annals, r.getYear() - 1, zone);
+		List<Chapters.Chapter> told = new java.util.ArrayList<>();
+		if (r != null && annals != null)
+		{
+			for (Chapters.Chapter c : Chapters.of(annals.getWeeks()))
+			{
+				if (c.in(r.getYear()))
+				{
+					told.add(c);
+				}
+			}
+		}
+		replace(year, YearView.build(r, before, wealthOf(r), told, yearChooser(), current, zone, items, icons, this::refreshLater, this::keep));
 	}
 
 	private void rebuildCard()
 	{
 		StackPanel stack = new StackPanel(8, 8);
+		Keepsake kept = keepsake == null ? null : Keepsake.of(annals, Keepsake.find(annals, keepsake), showWorth ? wealth : null, zone);
+		if (kept != null)
+		{
+			keepsakeCard(stack, kept);
+			return;
+		}
+		// The moment was struck, or the account changed: the year card again.
+		keepsake = null;
 		JComponent chooser = yearChooser();
 		if (chooser != null)
 		{
@@ -308,16 +513,44 @@ public class AnnalsPanel extends PluginPanel
 			return;
 		}
 		int shownYear = r.getYear();
-		cardImage = YearCard.render(r, showName, items, icons, this::refreshLater);
+		cardImage = YearCard.render(r, showWorth ? wealthOf(r) : null, showName, items, icons, this::refreshLater);
 		JPanel buttons = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 0));
 		buttons.setOpaque(false);
-		buttons.add(new CodexButton("Save card", true, () -> actions.save(cardImage, shownYear)));
+		buttons.add(new CodexButton("Save card", true, () -> actions.save(cardImage, "Year in Gielinor " + shownYear)));
 		buttons.add(new CodexButton("Copy to clipboard", false, () -> actions.copy(cardImage)));
 		boolean thisYear = shownYear == LocalDate.now(zone).getYear();
 		stack.add(new SectionHeader("Year in Gielinor", thisYear ? "so far" : String.valueOf(shownYear)));
 		stack.add(new CardPreview(cardImage));
 		stack.add(buttons);
-		String note = cardNote != null ? cardNote : "Save card asks where to put the picture. Copy puts it on the clipboard, ready to paste.";
+		String note = cardNote != null ? cardNote : "Save card asks where to put the picture. Copy puts it on the clipboard, ready to paste. Right-click a moment on the timeline to make a keepsake of it.";
+		stack.add(Ui.wrapped(note, Theme.small(), cardNote != null ? Theme.TEAL : Theme.TEXT_FAINT, Views.WIDTH - 10));
+		replace(card, stack);
+	}
+
+	/** The Card tab as a keepsake: the picture, Save and Copy, and the way back to the year. */
+	private void keepsakeCard(StackPanel stack, Keepsake kept)
+	{
+		Entry e = kept.getEntry();
+		String player = showName ? (playerName != null ? playerName : annals.getPlayer()) : null;
+		cardImage = KeepsakeCard.render(kept, player, annals.getBegunAt(), items, icons, this::refreshLater);
+		String name = "Keepsake " + Keepsake.fileName(e.getTitle()) + " " + kept.getDay();
+		stack.add(new SectionHeader("Keepsake", Format.shortDay(kept.getDay()) + " " + kept.getDay().getYear()));
+		stack.add(new CardPreview(cardImage));
+		JPanel buttons = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 0));
+		buttons.setOpaque(false);
+		buttons.add(new CodexButton("Save card", true, () -> actions.save(cardImage, name)));
+		buttons.add(new CodexButton("Copy to clipboard", false, () -> actions.copy(cardImage)));
+		stack.add(buttons);
+		JPanel back = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+		back.setOpaque(false);
+		back.add(new CodexButton("Back to the year card", false, () ->
+		{
+			keepsake = null;
+			cardNote = null;
+			rebuildCard();
+		}));
+		stack.add(back);
+		String note = cardNote != null ? cardNote : "Right-click any moment on the timeline or among the year's highlights to make its keepsake.";
 		stack.add(Ui.wrapped(note, Theme.small(), cardNote != null ? Theme.TEAL : Theme.TEXT_FAINT, Views.WIDTH - 10));
 		replace(card, stack);
 	}
@@ -333,7 +566,7 @@ public class AnnalsPanel extends PluginPanel
 		SwingUtilities.invokeLater(() ->
 		{
 			refreshPending = false;
-			if (tab == 2)
+			if (tab == CARD)
 			{
 				rebuildCard();
 			}

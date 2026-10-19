@@ -80,7 +80,33 @@ public class Year
 		{
 			kills = new LinkedHashMap<>();
 		}
+		// What damage can put in: a day outside the year, a figure below zero or missing.
+		if (year >= MIN_YEAR && year <= MAX_YEAR)
+		{
+			long first = java.time.LocalDate.of(year, 1, 1).toEpochDay();
+			long last = java.time.LocalDate.of(year, 12, 31).toEpochDay();
+			java.util.TreeSet<Long> kept = new java.util.TreeSet<>();
+			for (Long d : days)
+			{
+				if (d != null && d >= first && d <= last)
+				{
+					kept.add(d);
+				}
+			}
+			days = new ArrayList<>(kept);
+		}
+		startXp.entrySet().removeIf(e -> e.getKey() == null || e.getValue() == null || e.getValue() < 0);
+		endXp.entrySet().removeIf(e -> e.getKey() == null || e.getValue() == null || e.getValue() < 0);
+		startLevel.entrySet().removeIf(e -> e.getKey() == null || e.getValue() == null || e.getValue() < 1);
+		endLevel.entrySet().removeIf(e -> e.getKey() == null || e.getValue() == null || e.getValue() < 1);
+		kills.entrySet().removeIf(e -> e.getKey() == null || e.getValue() == null || e.getValue() < 0);
+		playedMs = Math.max(0, playedMs);
+		clues = Math.max(0, clues);
 	}
+
+	/** A year a save can sensibly hold; any other is damage. */
+	static final int MIN_YEAR = 2000;
+	static final int MAX_YEAR = 9999;
 
 	/** Experience a skill gained this year. */
 	public long gained(String skill)

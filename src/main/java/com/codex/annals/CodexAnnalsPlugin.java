@@ -4,18 +4,24 @@ import com.codex.annals.core.Annals;
 import com.codex.annals.core.Baseline;
 import com.codex.annals.core.ChatParser;
 import com.codex.annals.core.Entry;
+import com.codex.annals.core.Memories;
+import com.codex.annals.core.Week;
+import com.codex.annals.core.WeekNote;
+import com.codex.annals.core.Goals;
+import com.codex.annals.core.Wealth;
 import com.codex.annals.ui.AnnalsPanel;
+import com.codex.annals.ui.Arrivals;
 import com.codex.annals.ui.CardActions;
 import com.codex.annals.ui.Icons;
 import com.codex.annals.ui.ItemIcons;
 import com.codex.annals.ui.Sigil;
 import com.google.gson.Gson;
-import com.google.gson.JsonParseException;
 import com.google.inject.Provides;
 import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -79,6 +85,8 @@ public class CodexAnnalsPlugin extends Plugin
 {
 	private static final Logger log = LoggerFactory.getLogger(CodexAnnalsPlugin.class);
 	private static final String ANNALS_KEY = "annals";
+	/** Where a damaged save is set aside, as it was, before what was read from it is saved over it. */
+	private static final String DAMAGED_KEY = "annalsDamaged";
 	/** A game tick, the time each logged-in tick stands for. */
 	private static final long TICK_MS = 600;
 	/** Ticks between panel refreshes when only the clock moved, about half a minute. */
@@ -138,6 +146,16 @@ public class CodexAnnalsPlugin extends Plugin
 	private String recentKill;
 	private long recentKillAt;
 	private final Deque<RecentItem> recentLoot = new ArrayDeque<>();
+	/** The day the last on-this-day line was written, so it comes once a day and not after every world hop. */
+	private LocalDate rememberedOn;
+	/** Codex Ledger's save as last read, and what was read from it; read again only when it changes. */
+	private String ledgerRaw;
+	/** Codex Navigator's goal board as last read, and its goals; read again only when it changes. */
+	private String goalsRaw;
+	private List<Goals.Goal> goalsRead = java.util.Collections.emptyList();
+	private Wealth.Saved ledgerWealth;
+	/** Whether the panel has had a copy of these annals; until it has, one is sent even while it is closed. */
+	private boolean sent;
 
 	/** An item seen in loot a moment ago, to give a collection log entry its picture. */
 	private static final class RecentItem
@@ -163,10 +181,12 @@ public class CodexAnnalsPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
+		Arrivals arrivals = new Arrivals();
 		ItemIcons items = (itemId, onLoaded) ->
 		{
 			AsyncBufferedImage image = itemManager.getImage(itemId);
-			image.onLoaded(onLoaded);
+			// A loaded picture would run the callback again at every ask, and the panel asks as it redraws.
+			arrivals.ask(image, onLoaded);
 			return image;
 		};
 		Icons icons = name ->
@@ -183,9 +203,9 @@ public class CodexAnnalsPlugin extends Plugin
 		panel = new AnnalsPanel(items, icons, new CardActions()
 		{
 			@Override
-			public void save(BufferedImage card, int year)
+			public void save(BufferedImage card, String name)
 			{
-				saveCard(card, year);
+				saveCard(card, name);
 			}
 
 			@Override
@@ -195,7 +215,10 @@ public class CodexAnnalsPlugin extends Plugin
 			}
 		});
 		panel.setShowName(config.nameOnCard());
+		panel.setShowWorth(config.worthOnCard());
 		panel.onStrike(this::strike);
+		// Opening the panel asks for the annals as they are now; while it is closed no copy is made.
+		panel.onOpen(() -> clientThread.invokeLater(this::publish));
 		navButton = NavigationButton.builder()
 			.tooltip("Codex Annals")
 			.icon(Sigil.icon(16))
@@ -215,6 +238,7 @@ public class CodexAnnalsPlugin extends Plugin
 	protected void shutDown()
 	{
 		clientToolbar.removeNavigation(navButton);
+		panel.dispose();
 		clientThread.invokeLater(() ->
 		{
 			save();
@@ -286,8 +310,15 @@ public class CodexAnnalsPlugin extends Plugin
 	@Subscribe
 	public void onConfigChanged(ConfigChanged event)
 	{
-		// The annals themselves are saved in this group too; only the card's name setting concerns the panel.
-		if (!CodexAnnalsConfig.GROUP.equals(event.getGroup()) || !"nameOnCard".equals(event.getKey()))
+		if (Goals.GROUP.equals(event.getGroup()) && event.getKey() != null && event.getKey().endsWith(Goals.KEY))
+		{
+			// Codex Navigator pinned, finished or moved a goal: the Ahead tab dates it at the next refresh.
+			dirty = true;
+			return;
+		}
+		// The annals themselves are saved in this group too; only the cards' name and worth settings concern the panel.
+		if (!CodexAnnalsConfig.GROUP.equals(event.getGroup())
+			|| !("nameOnCard".equals(event.getKey()) || "worthOnCard".equals(event.getKey())))
 		{
 			return;
 		}
@@ -295,7 +326,12 @@ public class CodexAnnalsPlugin extends Plugin
 		if (target != null)
 		{
 			boolean showName = config.nameOnCard();
-			SwingUtilities.invokeLater(() -> target.setShowName(showName));
+			boolean showWorth = config.worthOnCard();
+			SwingUtilities.invokeLater(() ->
+			{
+				target.setShowName(showName);
+				target.setShowWorth(showWorth);
+			});
 		}
 	}
 
@@ -390,10 +426,89 @@ public class CodexAnnalsPlugin extends Plugin
 		{
 			announce("your " + lastYear + " in Gielinor is complete. Its card is waiting in the Annals panel.");
 		}
+		remember(now);
+		lookBack(now);
 		live = true;
 		save();
 		dirty = true;
 		publish();
+	}
+
+	/** On the anniversary of something in the annals, says so in chat, once a day. */
+	private void remember(long now)
+	{
+		ZoneId zone = ZoneId.systemDefault();
+		LocalDate today = java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDate();
+		if (!config.memories() || today.equals(rememberedOn))
+		{
+			return;
+		}
+		rememberedOn = today;
+		Memories.Memory memory = Memories.anniversary(Memories.of(annals, today, zone));
+		if (memory != null)
+		{
+			int year = today.getYear() - memory.getYears();
+			announce("on this day in " + year + ": " + memory.getEntry().getTitle() + ".");
+		}
+	}
+
+	/** At the first login of a new week, says in chat what the week before held, once per account. */
+	private void lookBack(long now)
+	{
+		ZoneId zone = ZoneId.systemDefault();
+		LocalDate today = java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDate();
+		long lastMonday = Week.mondayOf(today) - 7;
+		if (!config.weekly() || annals.getToldWeek() >= lastMonday)
+		{
+			return;
+		}
+		annals.told(lastMonday);
+		WeekNote note = WeekNote.lastWeek(annals, today, zone);
+		if (note != null)
+		{
+			announce("last week, " + note.line());
+		}
+	}
+
+	/**
+	 * Codex Ledger's saved worth for this account, read only and only when it changed, or null
+	 * when that plugin is not kept.
+	 */
+	private Wealth.Saved wealth()
+	{
+		if (profile == null)
+		{
+			return null;
+		}
+		String raw = configManager.getConfiguration(Wealth.LEDGER_GROUP, profile, Wealth.LEDGER_KEY);
+		if (raw == null || raw.isEmpty())
+		{
+			ledgerRaw = null;
+			ledgerWealth = null;
+			return null;
+		}
+		if (!raw.equals(ledgerRaw))
+		{
+			ledgerRaw = raw;
+			ledgerWealth = Wealth.read(gson, raw);
+		}
+		return ledgerWealth;
+	}
+
+	/** The goals pinned in Codex Navigator for this account, read only; empty without it. */
+	private List<Goals.Goal> goals()
+	{
+		if (profile == null)
+		{
+			return java.util.Collections.emptyList();
+		}
+		String raw = configManager.getConfiguration(Goals.GROUP, profile, Goals.KEY);
+		if (raw == null || !raw.equals(goalsRaw))
+		{
+			goalsRaw = raw;
+			goalsRead = Goals.read(gson, raw);
+		}
+		return goalsRead;
 	}
 
 	@Subscribe
@@ -567,27 +682,24 @@ public class CodexAnnalsPlugin extends Plugin
 		profile = configManager.getRSProfileKey();
 		annals = new Annals();
 		recentLoot.clear();
+		ledgerRaw = null;
+		ledgerWealth = null;
+		rememberedOn = null;
 		petTicks = 0;
+		sent = false;
 		if (profile == null)
 		{
 			return;
 		}
-		try
+		String saved = configManager.getRSProfileConfiguration(CodexAnnalsConfig.GROUP, ANNALS_KEY);
+		Annals.Loaded read = Annals.read(gson, saved);
+		if (read.damaged)
 		{
-			String saved = configManager.getRSProfileConfiguration(CodexAnnalsConfig.GROUP, ANNALS_KEY);
-			if (saved != null && !saved.isEmpty())
-			{
-				Annals read = gson.fromJson(saved, Annals.class);
-				if (read != null)
-				{
-					annals = read.repair();
-				}
-			}
+			// The save as it was is kept aside before anything is written over it.
+			log.warn("The saved annals were damaged; kept what still reads and set the save as it was aside");
+			configManager.setConfiguration(CodexAnnalsConfig.GROUP, profile, DAMAGED_KEY, saved);
 		}
-		catch (JsonParseException e)
-		{
-			log.warn("Could not read the saved annals, starting them afresh", e);
-		}
+		annals = read.annals;
 	}
 
 	/** @return whether anything was written */
@@ -603,18 +715,33 @@ public class CodexAnnalsPlugin extends Plugin
 		return true;
 	}
 
-	/** Sends the panel a copy of the annals, so Swing never reads what the client thread is writing. */
+	/**
+	 * Sends the panel a copy of the annals, so Swing never reads what the client thread is writing.
+	 * The copy is the whole history, so it is only made while the panel is open, or once after the
+	 * account changes; opening the panel asks for a fresh one.
+	 */
 	private void publish()
 	{
 		dirty = false;
+		AnnalsPanel target = panel;
+		if (target == null || (!target.isOpen() && sent))
+		{
+			return;
+		}
+		sent = true;
 		Annals copy = gson.fromJson(gson.toJson(annals), Annals.class).repair();
 		Player player = client.getLocalPlayer();
 		String name = client.getGameState() == GameState.LOGGED_IN && player != null ? player.getName() : null;
-		AnnalsPanel target = panel;
-		if (target != null)
 		{
 			ZoneId zone = ZoneId.systemDefault();
-			SwingUtilities.invokeLater(() -> target.update(copy.isBegun() ? copy : null, zone, name));
+			Wealth.Saved worth = wealth();
+			List<Goals.Goal> goals = goals();
+			SwingUtilities.invokeLater(() ->
+			{
+				target.setWealth(worth);
+				target.setGoals(goals);
+				target.update(copy.isBegun() ? copy : null, zone, name);
+			});
 		}
 	}
 
@@ -638,15 +765,15 @@ public class CodexAnnalsPlugin extends Plugin
 	}
 
 	/** Asks where to save the card with RuneLite's own file chooser, then writes it there; runs on the Swing thread. */
-	private void saveCard(BufferedImage card, int year)
+	private void saveCard(BufferedImage card, String name)
 	{
 		List<Filepath> chosen = new Filepath.Chooser()
 			.setIsSave()
 			.setAcceptsFiles()
-			.setDialogTitle("Save Year in Gielinor card")
+			.setDialogTitle("Save " + name)
 			.addExtensionFilter("PNG image", "png")
 			.setDefaultExtension("png")
-			.setFileName("Year in Gielinor " + year + ".png")
+			.setFileName(name + ".png")
 			.showDialog(panel);
 		if (chosen == null || chosen.isEmpty())
 		{
@@ -663,7 +790,7 @@ public class CodexAnnalsPlugin extends Plugin
 			}
 			catch (IOException e)
 			{
-				log.warn("Could not save the year card", e);
+				log.warn("Could not save the card", e);
 				note = "The card could not be saved: " + e.getMessage();
 			}
 			String shown = note;
