@@ -55,6 +55,21 @@ public final class Format
 		return "+" + amount(Math.max(0, xp));
 	}
 
+	/** A change in coins with its sign: "+312M", "-4.1M", "0". */
+	public static String signedCoins(long gp)
+	{
+		return gp > 0 ? "+" + amount(gp) : gp < 0 ? "-" + amount(-gp) : "0";
+	}
+
+	/** A change in coins with its sign in at most three figures, for tight spaces: "+248M", "-4.1M". */
+	public static String signedCompact(long gp)
+	{
+		long n = Math.abs(gp);
+		String text = n >= 100_000_000L && n < 999_500_000L ? Math.round(n / 1_000_000.0) + "M"
+			: n >= 10_000_000L && n < 100_000_000L ? trim(n / 1_000_000.0, 1) + "M" : amount(n);
+		return gp > 0 ? "+" + text : gp < 0 ? "-" + text : "0";
+	}
+
 	public static String coins(long gp)
 	{
 		return amount(Math.max(0, gp));

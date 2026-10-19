@@ -3,6 +3,8 @@ package com.codex.annals.ui;
 import com.codex.annals.core.Annals;
 import com.codex.annals.core.Baseline;
 import com.codex.annals.core.Entry;
+import com.codex.annals.core.Memories;
+import com.codex.annals.core.MonthNote;
 import com.codex.annals.core.Timeline;
 import java.awt.BorderLayout;
 import java.awt.FlowLayout;
@@ -10,11 +12,16 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.ZoneId;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import javax.swing.BoxLayout;
 import javax.swing.JComponent;
+import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.border.EmptyBorder;
 
 /**
  * The Timeline tab: every entry of the account's history, newest first, in chapters by month,
@@ -56,6 +63,16 @@ final class TimelineView
 			return stack;
 		}
 
+		Map<YearMonth, List<Entry>> byMonth = new HashMap<>();
+		if (chapter == Entry.Chapter.ALL)
+		{
+			memories(stack, annals, zone, items, icons, onLoaded);
+			for (Entry e : annals.getEntries())
+			{
+				byMonth.computeIfAbsent(YearMonth.from(dayOf(e.getAt(), zone)), k -> new ArrayList<>()).add(e);
+			}
+		}
+
 		int shown = Math.min(limit, rows.size());
 		int i = 0;
 		while (i < shown)
@@ -72,6 +89,14 @@ final class TimelineView
 				count += Math.max(1, rows.get(k).getFolded());
 			}
 			stack.add(new SectionHeader(Format.month(rows.get(i).getDate()), Format.plural(count, "entry", "entries")));
+			String note = byMonth.containsKey(month) ? MonthNote.of(byMonth.get(month)) : null;
+			if (note != null)
+			{
+				JLabel line = Ui.label(note, Theme.small(), Theme.GOLD_DIM);
+				line.setBorder(new EmptyBorder(0, 14, 0, 0));
+				line.setToolTipText(Format.month(rows.get(i).getDate()) + ": " + note);
+				stack.add(line);
+			}
 			JPanel run = new JPanel();
 			run.setOpaque(false);
 			run.setLayout(new BoxLayout(run, BoxLayout.Y_AXIS));
@@ -104,6 +129,43 @@ final class TimelineView
 			stack.add(prologue(annals.getBaseline(), dayOf(annals.getBegunAt(), zone)));
 		}
 		return stack;
+	}
+
+	/** On this day: what was written on today's date in earlier years, and a month and six months ago. */
+	private static void memories(StackPanel stack, Annals annals, ZoneId zone, ItemIcons items, Icons icons, Runnable onLoaded)
+	{
+		List<Memories.Memory> memories = Memories.of(annals, LocalDate.now(zone), zone);
+		if (memories.isEmpty())
+		{
+			return;
+		}
+		stack.add(new SectionHeader("On this day", Format.shortDay(LocalDate.now(zone))));
+		Card card = new Card(new BorderLayout());
+		card.accent(Theme.GOLD);
+		card.setBorder(new EmptyBorder(6, 10, 4, 8));
+		JPanel run = new JPanel();
+		run.setOpaque(false);
+		run.setLayout(new BoxLayout(run, BoxLayout.Y_AXIS));
+		String last = null;
+		for (int k = 0; k < memories.size(); k++)
+		{
+			Memories.Memory m = memories.get(k);
+			if (!m.getWhen().equals(last))
+			{
+				last = m.getWhen();
+				JLabel when = Ui.label(last, Theme.small(), Theme.GOLD);
+				when.setAlignmentX(JComponent.LEFT_ALIGNMENT);
+				run.add(when);
+			}
+			boolean alone = k + 1 >= memories.size() || !memories.get(k + 1).getWhen().equals(m.getWhen());
+			boolean opens = k == 0 || !memories.get(k - 1).getWhen().equals(m.getWhen());
+			Entry e = m.getEntry();
+			EntryRow row = new EntryRow(e, dayOf(e.getAt(), zone), Views.icon(e, items, icons, onLoaded), opens, alone);
+			row.setAlignmentX(JComponent.LEFT_ALIGNMENT);
+			run.add(row);
+		}
+		card.add(run, BorderLayout.CENTER);
+		stack.add(card);
 	}
 
 	private static LocalDate dayOf(long at, ZoneId zone)

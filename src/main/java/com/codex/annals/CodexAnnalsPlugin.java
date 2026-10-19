@@ -4,6 +4,8 @@ import com.codex.annals.core.Annals;
 import com.codex.annals.core.Baseline;
 import com.codex.annals.core.ChatParser;
 import com.codex.annals.core.Entry;
+import com.codex.annals.core.Memories;
+import com.codex.annals.core.Wealth;
 import com.codex.annals.ui.AnnalsPanel;
 import com.codex.annals.ui.CardActions;
 import com.codex.annals.ui.Icons;
@@ -16,6 +18,7 @@ import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -138,6 +141,11 @@ public class CodexAnnalsPlugin extends Plugin
 	private String recentKill;
 	private long recentKillAt;
 	private final Deque<RecentItem> recentLoot = new ArrayDeque<>();
+	/** The day the last on-this-day line was written, so it comes once a day and not after every world hop. */
+	private LocalDate rememberedOn;
+	/** Codex Ledger's save as last read, and what was read from it; read again only when it changes. */
+	private String ledgerRaw;
+	private Wealth.Saved ledgerWealth;
 
 	/** An item seen in loot a moment ago, to give a collection log entry its picture. */
 	private static final class RecentItem
@@ -390,10 +398,61 @@ public class CodexAnnalsPlugin extends Plugin
 		{
 			announce("your " + lastYear + " in Gielinor is complete. Its card is waiting in the Annals panel.");
 		}
+		remember(now);
 		live = true;
 		save();
 		dirty = true;
 		publish();
+	}
+
+	/** On the anniversary of something in the annals, says so in chat, once a day. */
+	private void remember(long now)
+	{
+		ZoneId zone = ZoneId.systemDefault();
+		LocalDate today = java.time.Instant.ofEpochMilli(now).atZone(zone).toLocalDate();
+		if (!config.memories() || today.equals(rememberedOn))
+		{
+			return;
+		}
+		rememberedOn = today;
+		Memories.Memory memory = Memories.anniversary(Memories.of(annals, today, zone));
+		if (memory != null)
+		{
+			int year = today.getYear() - memory.getYears();
+			announce("on this day in " + year + ": " + memory.getEntry().getTitle() + ".");
+		}
+	}
+
+	/**
+	 * Codex Ledger's saved worth for this account, read only and only when it changed, or null
+	 * when that plugin is not kept.
+	 */
+	private Wealth.Saved wealth()
+	{
+		if (profile == null)
+		{
+			return null;
+		}
+		String raw = configManager.getConfiguration(Wealth.LEDGER_GROUP, profile, Wealth.LEDGER_KEY);
+		if (raw == null || raw.isEmpty())
+		{
+			ledgerRaw = null;
+			ledgerWealth = null;
+			return null;
+		}
+		if (!raw.equals(ledgerRaw))
+		{
+			ledgerRaw = raw;
+			try
+			{
+				ledgerWealth = gson.fromJson(raw, Wealth.Saved.class);
+			}
+			catch (JsonParseException e)
+			{
+				ledgerWealth = null;
+			}
+		}
+		return ledgerWealth;
 	}
 
 	@Subscribe
@@ -567,6 +626,8 @@ public class CodexAnnalsPlugin extends Plugin
 		profile = configManager.getRSProfileKey();
 		annals = new Annals();
 		recentLoot.clear();
+		ledgerRaw = null;
+		ledgerWealth = null;
 		petTicks = 0;
 		if (profile == null)
 		{
@@ -614,7 +675,12 @@ public class CodexAnnalsPlugin extends Plugin
 		if (target != null)
 		{
 			ZoneId zone = ZoneId.systemDefault();
-			SwingUtilities.invokeLater(() -> target.update(copy.isBegun() ? copy : null, zone, name));
+			Wealth.Saved worth = wealth();
+			SwingUtilities.invokeLater(() ->
+			{
+				target.setWealth(worth);
+				target.update(copy.isBegun() ? copy : null, zone, name);
+			});
 		}
 	}
 

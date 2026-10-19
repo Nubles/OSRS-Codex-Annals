@@ -2,6 +2,7 @@ package com.codex.annals.ui;
 
 import com.codex.annals.core.Entry;
 import com.codex.annals.core.Recap;
+import com.codex.annals.core.Wealth;
 import java.awt.BorderLayout;
 import java.awt.GridLayout;
 import java.time.Instant;
@@ -23,10 +24,13 @@ final class YearView
 	}
 
 	/**
+	 * @param before the year before, to set this one against, or null
+	 * @param wealth the year's worth from Codex Ledger, or null when it is not kept
 	 * @param years the year chooser, or null when only one year is kept
 	 * @param currentMonth the month still being lived when this is the current year, or -1
 	 */
-	static JComponent build(Recap r, JComponent years, int currentMonth, ZoneId zone, ItemIcons items, Icons icons, Runnable onLoaded)
+	static JComponent build(Recap r, Recap before, Wealth wealth, JComponent years, int currentMonth, ZoneId zone, ItemIcons items, Icons icons,
+		Runnable onLoaded)
 	{
 		StackPanel stack = new StackPanel(8, 8);
 		if (years != null)
@@ -117,8 +121,54 @@ final class YearView
 		}
 		records.add(record("Clue scrolls", Format.number(r.getClues())));
 		records.add(record("Combat tasks", Format.number(r.getTasks())));
+		if (wealth != null)
+		{
+			records.add(record(wealth.isPartial() ? "Worth since " + Format.shortDay(Instant.ofEpochMilli(wealth.getFrom()).atZone(zone).toLocalDate())
+				: "Worth", Format.signedCoins(wealth.change())));
+			records.add(Ui.wrapped(Format.coins(wealth.getStart()) + " to " + Format.coins(wealth.getEnd()) + ", as Codex Ledger counted it",
+				Theme.small(), Theme.TEXT_FAINT, Views.WIDTH - 30));
+		}
 		stack.add(records);
+		if (before != null)
+		{
+			compare(stack, r, before, currentMonth >= 0);
+		}
 		return stack;
+	}
+
+	/** The year set against the one before it, each figure with how much it rose or fell. */
+	private static void compare(StackPanel stack, Recap r, Recap before, boolean current)
+	{
+		stack.add(new SectionHeader("Against " + before.getYear(), current ? r.getYear() + " so far" : null));
+		Card card = new Card(new GridLayout(0, 1, 0, 3));
+		card.add(versus("Hours played", r.getPlayedMs() / 3_600_000L, before.getPlayedMs() / 3_600_000L, false));
+		card.add(versus("Days played", r.getDaysPlayed(), before.getDaysPlayed(), false));
+		card.add(versus("Levels", r.getLevelsGained(), before.getLevelsGained(), false));
+		card.add(versus("Experience", r.getXpGained(), before.getXpGained(), true));
+		card.add(versus("Log slots", r.getCollection(), before.getCollection(), false));
+		card.add(versus("Boss kills", r.getKills(), before.getKills(), false));
+		card.add(versus("Quests", r.getQuests(), before.getQuests(), false));
+		stack.add(card);
+	}
+
+	/** "Levels  41  +12": this year's figure and how far it is from the year before's. */
+	private static JPanel versus(String label, long now, long then, boolean xp)
+	{
+		JPanel line = new JPanel(new BorderLayout(6, 0));
+		line.setOpaque(false);
+		line.add(Ui.label(label, Theme.small(), Theme.TEXT_MUTED), BorderLayout.WEST);
+		JPanel right = new JPanel(new BorderLayout(6, 0));
+		right.setOpaque(false);
+		right.add(Ui.label(xp ? Format.amount(now) : Format.number(now), Theme.small(), Theme.TEXT), BorderLayout.CENTER);
+		long diff = now - then;
+		String change = diff == 0 ? "same" : (diff > 0 ? "+" : "-") + (xp ? Format.amount(Math.abs(diff)) : Format.number(Math.abs(diff)));
+		JLabel delta = Ui.label(change, Theme.small(), diff > 0 ? Theme.GREEN : diff < 0 ? Theme.EMBER : Theme.TEXT_FAINT);
+		delta.setHorizontalAlignment(JLabel.RIGHT);
+		delta.setPreferredSize(new java.awt.Dimension(44, delta.getPreferredSize().height));
+		right.add(delta, BorderLayout.EAST);
+		line.add(right, BorderLayout.EAST);
+		line.setToolTipText(label + ": " + (xp ? Format.amount(now) : Format.number(now)) + ", against " + (xp ? Format.amount(then) : Format.number(then)));
+		return line;
 	}
 
 	private static JPanel record(String label, String value)

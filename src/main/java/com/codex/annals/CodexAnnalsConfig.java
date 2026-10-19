@@ -63,6 +63,18 @@ public interface CodexAnnalsConfig extends Config
 	}
 
 	@ConfigItem(
+		keyName = "memories",
+		name = "On this day at login",
+		description = "When you log in on the anniversary of something in your annals, such as a 99 a year ago, put a line in the chat box",
+		position = 2,
+		section = display
+	)
+	default boolean memories()
+	{
+		return true;
+	}
+
+	@ConfigItem(
 		keyName = "nameOnCard",
 		name = "Name on card",
 		description = "Write your character's name on the Year in Gielinor card",

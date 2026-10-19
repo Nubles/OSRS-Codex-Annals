@@ -38,6 +38,8 @@ public class Annals
 	Map<String, Integer> levels = new LinkedHashMap<>();
 	Map<String, Long> xp = new LinkedHashMap<>();
 	int combat;
+	/** Where the skills stood at the start of each recent day, for the pace. */
+	Pace pace = new Pace();
 
 	public boolean isBegun()
 	{
@@ -83,6 +85,12 @@ public class Annals
 		return null;
 	}
 
+	/** Each skill's experience as last read. Read only. */
+	public Map<String, Long> getExperience()
+	{
+		return Collections.unmodifiableMap(xp);
+	}
+
 	public Map<String, Integer> getKillCounts()
 	{
 		return Collections.unmodifiableMap(kc);
@@ -121,6 +129,11 @@ public class Annals
 		{
 			xp = new LinkedHashMap<>();
 		}
+		if (pace == null)
+		{
+			pace = new Pace();
+		}
+		pace.repair();
 		return this;
 	}
 
@@ -159,6 +172,7 @@ public class Annals
 				year.endLevel.put(skill, level);
 			}
 		}
+		pace.note(Instant.ofEpochMilli(now).atZone(zone).toLocalDate().toEpochDay(), xp);
 		if (!isBegun())
 		{
 			begunAt = now;
@@ -493,6 +507,7 @@ public class Annals
 		Year year = year(now, zone);
 		year.playedMs += ms;
 		long day = Instant.ofEpochMilli(now).atZone(zone).toLocalDate().toEpochDay();
+		pace.note(day, xp);
 		if (year.days.isEmpty() || year.days.get(year.days.size() - 1) != day)
 		{
 			if (!year.days.contains(day))

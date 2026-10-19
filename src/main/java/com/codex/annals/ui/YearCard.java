@@ -2,6 +2,7 @@ package com.codex.annals.ui;
 
 import com.codex.annals.core.Entry;
 import com.codex.annals.core.Recap;
+import com.codex.annals.core.Wealth;
 import java.awt.AlphaComposite;
 import java.awt.BasicStroke;
 import java.awt.Color;
@@ -36,11 +37,11 @@ public final class YearCard
 	}
 
 	/** Renders the card; icons still loading are left out and onLoaded runs when one arrives. */
-	public static BufferedImage render(Recap r, boolean showName, ItemIcons items, Icons skills, Runnable onLoaded)
+	public static BufferedImage render(Recap r, Wealth wealth, boolean showName, ItemIcons items, Icons skills, Runnable onLoaded)
 	{
 		BufferedImage scratch = new BufferedImage(WIDTH, 2000, BufferedImage.TYPE_INT_ARGB);
 		Graphics2D sg = scratch.createGraphics();
-		int height = content(sg, r, showName, items, skills, onLoaded);
+		int height = content(sg, r, wealth, showName, items, skills, onLoaded);
 		sg.dispose();
 
 		BufferedImage image = new BufferedImage(WIDTH * SCALE, height * SCALE, BufferedImage.TYPE_INT_ARGB);
@@ -48,7 +49,7 @@ public final class YearCard
 		g.scale(SCALE, SCALE);
 		Theme.smooth(g);
 		frame(g, height);
-		content(g, r, showName, items, skills, onLoaded);
+		content(g, r, wealth, showName, items, skills, onLoaded);
 		g.dispose();
 		return image;
 	}
@@ -91,7 +92,7 @@ public final class YearCard
 	}
 
 	/** Lays out and draws everything inside the frame; returns the page height it needs. */
-	private static int content(Graphics2D g, Recap r, boolean showName, ItemIcons items, Icons skills, Runnable onLoaded)
+	private static int content(Graphics2D g, Recap r, Wealth wealth, boolean showName, ItemIcons items, Icons skills, Runnable onLoaded)
 	{
 		Theme.smooth(g);
 		int x = PAD;
@@ -154,7 +155,7 @@ public final class YearCard
 			x + (tileW + 6) * 2, y, w - (tileW + 6) * 2, tileH);
 		y += tileH + 8;
 
-		y = tallies(g, r, x, y, w) + 10;
+		y = tallies(g, r, wealth, x, y, w) + 10;
 
 		header(g, "Months", r.busiestMonth() >= 0 ? "busiest " + Format.monthName(r.busiestMonth()) : null, x, y, w);
 		y += 24;
@@ -244,7 +245,7 @@ public final class YearCard
 	}
 
 	/** A row of small medallions for the year's quests, diaries, log slots, pets and clues. */
-	private static int tallies(Graphics2D g, Recap r, int x, int y, int w)
+	private static int tallies(Graphics2D g, Recap r, Wealth wealth, int x, int y, int w)
 	{
 		int[] counts = {r.getQuests(), r.getDiaries(), r.getCollection(), r.getPets(), r.getClues()};
 		String[] ones = {"quest", "diary", "log slot", "pet", "clue"};
@@ -261,6 +262,12 @@ public final class YearCard
 				keptColors.add(all[i]);
 			}
 		}
+		if (wealth != null && wealth.change() != 0 && !wealth.isPartial())
+		{
+			// Worth from Codex Ledger, when it kept the whole year.
+			kept.add(new String[]{Format.signedCompact(wealth.change()), "worth"});
+			keptColors.add(wealth.change() > 0 ? Theme.GOLD_BRIGHT : Theme.EMBER);
+		}
 		if (kept.isEmpty())
 		{
 			return y - 10;
@@ -269,7 +276,8 @@ public final class YearCard
 		Color[] colors = keptColors.toArray(new Color[0]);
 		int gap = 4;
 		// Medallions keep the size five would have, centred, so one alone does not stretch across the page.
-		float cell = (w - gap * 4) / 5f;
+		int slots = Math.max(5, items.length);
+		float cell = (w - gap * (slots - 1)) / (float) slots;
 		x += Math.round((w - (cell * items.length + gap * (items.length - 1))) / 2);
 		int h = 34;
 		g.setFont(Theme.small());

@@ -1,8 +1,10 @@
 package com.codex.annals.ui;
 
+import com.codex.annals.core.Ahead;
 import com.codex.annals.core.Annals;
 import com.codex.annals.core.Entry;
 import com.codex.annals.core.Recap;
+import com.codex.annals.core.Wealth;
 import com.codex.annals.core.Year;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
@@ -25,12 +27,16 @@ import javax.swing.border.EmptyBorder;
 import net.runelite.client.ui.PluginPanel;
 
 /**
- * The Codex Annals side panel: the crest, then three pages. Timeline is the account's whole
- * history, Year is one year told in full, and Card is that year as a picture to save or copy.
+ * The Codex Annals side panel: the crest, then four pages. Timeline is the account's whole
+ * history, Year is one year told in full, Ahead is when the next milestones fall at the pace the
+ * account keeps, and Card is that year as a picture to save or copy.
  */
 public class AnnalsPanel extends PluginPanel
 {
-	private static final String[] TABS = {"timeline", "year", "card"};
+	private static final String[] TABS = {"timeline", "year", "ahead", "card"};
+	private static final int YEAR = 1;
+	private static final int AHEAD = 2;
+	private static final int CARD = 3;
 	private static final int PAGE = 120;
 	/** Up to this many years sit side by side as tabs; beyond it the chooser steps from year to year. */
 	private static final int YEAR_TABS = 4;
@@ -39,13 +45,16 @@ public class AnnalsPanel extends PluginPanel
 	private final Icons icons;
 	private final CardActions actions;
 	private final Crest crest = new Crest();
-	private final Segmented tabs = new Segmented(true, "Timeline", "Year", "Card");
+	private final Segmented tabs = new Segmented(true, "Timeline", "Year", "Ahead", "Card");
 	private final Segmented chapters = new Segmented(false, TimelineView.CHAPTERS);
 	private final CardLayout cards = new CardLayout();
 	private final JPanel content = new JPanel(cards);
 	private final JScrollPane timeline = scroller();
 	private final JScrollPane year = scroller();
+	private final JScrollPane ahead = scroller();
 	private final JScrollPane card = scroller();
+	/** Codex Ledger's saved worth, when that plugin is kept too. */
+	private Wealth.Saved wealth;
 
 	private Annals annals;
 	private ZoneId zone = ZoneId.systemDefault();
@@ -84,7 +93,8 @@ public class AnnalsPanel extends PluginPanel
 		content.setOpaque(false);
 		content.add(timeline, TABS[0]);
 		content.add(year, TABS[1]);
-		content.add(card, TABS[2]);
+		content.add(ahead, TABS[2]);
+		content.add(card, TABS[3]);
 		add(content, BorderLayout.CENTER);
 
 		tabs.onChange(this::showTab);
@@ -163,7 +173,7 @@ public class AnnalsPanel extends PluginPanel
 		IntConsumer choose = i ->
 		{
 			yearIndex = i;
-			if (tab == 2)
+			if (tab == CARD)
 			{
 				rebuildCard();
 			}
@@ -190,7 +200,7 @@ public class AnnalsPanel extends PluginPanel
 	public void setShowName(boolean showName)
 	{
 		this.showName = showName;
-		if (tab == 2)
+		if (tab == CARD)
 		{
 			rebuildCard();
 		}
@@ -209,12 +219,16 @@ public class AnnalsPanel extends PluginPanel
 		tab = index;
 		tabs.setSelected(index, false);
 		cards.show(content, TABS[index]);
-		if (index == 2)
+		if (index == CARD)
 		{
 			cardNote = null;
 			rebuildCard();
 		}
-		else if (index == 1)
+		else if (index == AHEAD)
+		{
+			rebuildAhead();
+		}
+		else if (index == YEAR)
 		{
 			// The chosen year may have changed on the card page.
 			rebuildYear();
@@ -237,11 +251,36 @@ public class AnnalsPanel extends PluginPanel
 			thisYear == null ? 0 : thisYear.getDays().size(),
 			thisYear == null ? 0 : thisYear.getPlayedMs());
 		rebuildTimeline();
-		rebuildYear();
-		if (tab == 2)
+		if (tab == YEAR)
+		{
+			rebuildYear();
+		}
+		else if (tab == AHEAD)
+		{
+			rebuildAhead();
+		}
+		else if (tab == CARD)
 		{
 			rebuildCard();
 		}
+	}
+
+	/** Codex Ledger's saved worth, or null when it is not kept; shown at the next rebuild. */
+	public void setWealth(Wealth.Saved wealth)
+	{
+		this.wealth = wealth;
+	}
+
+	private Wealth wealthOf(Recap r)
+	{
+		return r == null ? null : Wealth.of(wealth, r.getYear(), zone, r.getYear() == LocalDate.now(zone).getYear());
+	}
+
+	private void rebuildAhead()
+	{
+		LocalDate today = LocalDate.now(zone);
+		Ahead forecast = annals == null ? null : Ahead.of(annals, today, zone);
+		replace(ahead, AheadView.build(forecast, today, annals == null ? Collections.emptyMap() : annals.getExperience(), icons));
 	}
 
 	/** What the timeline was last built from; when only the clock moved, it is left as it is. */
@@ -272,7 +311,7 @@ public class AnnalsPanel extends PluginPanel
 				sum = sum * 31 + (e.getAt() ^ e.getTitle().hashCode() ^ e.getItemId() ^ (e.getDetail() == null ? 0 : e.getDetail().hashCode()));
 			}
 		}
-		return (annals == null ? "none" : annals.getEntries().size() + ":" + sum) + "/" + chapters.getSelected() + "/" + limit + "/" + zone;
+		return (annals == null ? "none" : annals.getEntries().size() + ":" + sum) + "/" + chapters.getSelected() + "/" + limit + "/" + zone + "/" + LocalDate.now(zone);
 	}
 
 	private Recap recap()
@@ -289,7 +328,8 @@ public class AnnalsPanel extends PluginPanel
 		Recap r = recap();
 		LocalDate today = LocalDate.now(zone);
 		int current = r != null && r.getYear() == today.getYear() ? today.getMonthValue() - 1 : -1;
-		replace(year, YearView.build(r, yearChooser(), current, zone, items, icons, this::refreshLater));
+		Recap before = r == null || annals == null ? null : Recap.of(annals, r.getYear() - 1, zone);
+		replace(year, YearView.build(r, before, wealthOf(r), yearChooser(), current, zone, items, icons, this::refreshLater));
 	}
 
 	private void rebuildCard()
@@ -308,7 +348,7 @@ public class AnnalsPanel extends PluginPanel
 			return;
 		}
 		int shownYear = r.getYear();
-		cardImage = YearCard.render(r, showName, items, icons, this::refreshLater);
+		cardImage = YearCard.render(r, wealthOf(r), showName, items, icons, this::refreshLater);
 		JPanel buttons = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 0));
 		buttons.setOpaque(false);
 		buttons.add(new CodexButton("Save card", true, () -> actions.save(cardImage, shownYear)));
@@ -333,7 +373,7 @@ public class AnnalsPanel extends PluginPanel
 		SwingUtilities.invokeLater(() ->
 		{
 			refreshPending = false;
-			if (tab == 2)
+			if (tab == CARD)
 			{
 				rebuildCard();
 			}

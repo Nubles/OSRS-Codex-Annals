@@ -7,15 +7,17 @@ It is part of the **Codex** suite, with [Codex Navigator](https://github.com/Nub
 <p align="center">
   <img src="docs/screenshots/timeline.png" width="225" alt="Timeline">
   <img src="docs/screenshots/year.png" width="225" alt="Year">
+  <img src="docs/screenshots/ahead.png" width="225" alt="Ahead">
   <img src="docs/screenshots/card-tab.png" width="225" alt="Card">
 </p>
 
 ## What it does
 
-- **Timeline.** Your account's history, newest first, in chapters by month. Filter it to Skills, Feats (quests, diaries, combat tasks), Loot (log slots, pets, drops, clues) or Bosses. A day of ordinary levels folds into one line, so a long grind never buries a pet. Each line leads with what matters: a drop's value and where it came from, or how far a level still is from 99. At the very end sits the prologue: where the account stood the day the annals began. If a line should not be there, right-click it to strike it from the annals.
-- **Year.** One year told in full: its headline ("The year of 99 Ranged"), hours and days played, levels and experience gained, log slots, quests and diaries, a month-by-month strip lit by how much you played, the skills and bosses it was spent on, its highlights and its records (longest streak, busiest month, biggest drop).
+- **Timeline.** Your account's history, newest first, in chapters by month. Filter it to Skills, Feats (quests, diaries, combat tasks), Loot (log slots, pets, drops, clues) or Bosses. A day of ordinary levels folds into one line, so a long grind never buries a pet. Each line leads with what matters: a drop's value and where it came from, or how far a level still is from 99. At the very end sits the prologue: where the account stood the day the annals began. If a line should not be there, right-click it to strike it from the annals. Each month opens with a line of what it held ("1 99, 3 log slots, 14 levels"), and at the top sits **On this day**: what you did on today's date in earlier years, six months and a month ago.
+- **Year.** One year told in full: its headline ("The year of 99 Ranged"), hours and days played, levels and experience gained, log slots, quests and diaries, a month-by-month strip lit by how much you played, the skills and bosses it was spent on, its highlights and its records (longest streak, busiest month, biggest drop), then the year set against the one before it. With [Codex Ledger](https://github.com/Nubles/OSRS-Codex-Ledger) installed too, the year's change in worth joins the records, and the card when the ledger kept the whole year. Annals only reads the ledger's save; it works the same without it.
+- **Ahead.** When each skill reaches 99 at the pace you keep, the next total level, when the max cape falls (or which skills stand in its way), skills at 99 on their way to 200M, and your next kill count milestones. The pace is the last four weeks', counting every day whether you played or not, so the dates are honest ones; until the annals have that, it is this year's so far.
 - **Year in Gielinor card.** The year on one page, drawn at double scale so the pixel fonts stay crisp. It grows all year; save it wherever you choose with RuneLite's file chooser, or copy it to the clipboard. Every earlier year stays one click away.
-- **Milestones in chat.** When a 99, a total level or experience milestone, a first kill or a big drop is written down, a short line in the chat box says so. This can be turned off.
+- **Milestones in chat.** When a 99, a total level or experience milestone, a first kill or a big drop is written down, a short line in the chat box says so, and on the anniversary of something in your annals a line at login remembers it ("On this day in 2025: 99 Slayer"). Both can be turned off.
 
 <p align="center">
   <img src="docs/screenshots/card.png" width="360" alt="A Year in Gielinor card">
