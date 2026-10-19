@@ -44,7 +44,8 @@ class EntryRow extends JComponent
 		this.last = last;
 		setOpaque(false);
 		setPreferredSize(new Dimension(10, HEIGHT));
-		String full = entry.getDetail();
+		// A 99 told the way it is written now, even from an older save.
+		String full = entry.getKind() == Entry.Kind.MAX ? detail(entry) : entry.getDetail();
 		String worth = entry.getValue() > 0 ? ", worth " + Format.coins(entry.getValue()) : "";
 		setToolTipText(Format.date(entry.getAt()) + ": " + entry.getTitle() + (full == null ? "" : ", " + Format.lower(full)) + worth);
 	}

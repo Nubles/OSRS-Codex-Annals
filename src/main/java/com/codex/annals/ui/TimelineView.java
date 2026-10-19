@@ -202,7 +202,7 @@ final class TimelineView
 		List<Entry> out = new ArrayList<>();
 		for (Entry e : entries)
 		{
-			if (contains(e.getTitle(), query) || contains(e.getDetail(), query) || contains(e.getSkill(), query))
+			if (contains(e.getTitle(), query) || contains(e.getDetail(), query) || contains(EntryRow.detail(e), query) || contains(e.getSkill(), query))
 			{
 				out.add(e);
 			}
