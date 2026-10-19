@@ -87,17 +87,19 @@ public final class WeekNote
 			}
 		}
 
-		// Levels from experience: where each skill ended that week is where it stands now, less every later week.
+		// Levels from experience: where each skill ended that week, as seen then; for a week kept
+		// without that, where it stands now less every later week.
 		int levels = 0;
 		for (Map.Entry<String, Long> e : week.xp.entrySet())
 		{
-			Long now = annals.getExperience().get(e.getKey());
+			Long seen = week.end == null ? null : week.end.get(e.getKey());
+			Long now = seen != null ? seen : annals.getExperience().get(e.getKey());
 			if (now == null)
 			{
 				continue;
 			}
 			long end = now;
-			for (int i = at + 1; i < weeks.size(); i++)
+			for (int i = at + 1; seen == null && i < weeks.size(); i++)
 			{
 				end -= weeks.get(i).xp.getOrDefault(e.getKey(), 0L);
 			}

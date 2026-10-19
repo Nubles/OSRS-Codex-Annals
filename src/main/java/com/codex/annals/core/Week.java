@@ -18,6 +18,11 @@ public class Week
 	Map<String, Long> xp = new LinkedHashMap<>();
 	Map<String, Integer> kills = new LinkedHashMap<>();
 	long playedMs;
+	/**
+	 * Each trained skill's experience when last seen that week, so its levels can be told later
+	 * however much is gained away from RuneLite since; null in a week kept before this was.
+	 */
+	Map<String, Long> end = new LinkedHashMap<>();
 
 	Week()
 	{
@@ -94,6 +99,10 @@ public class Week
 		if (kills == null)
 		{
 			kills = new LinkedHashMap<>();
+		}
+		if (end == null)
+		{
+			end = new LinkedHashMap<>();
 		}
 		xp.values().removeIf(v -> v == null || v <= 0);
 		kills.values().removeIf(v -> v == null || v <= 0);

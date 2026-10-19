@@ -218,4 +218,26 @@ public class WeeksTest
 		// A week never kept is none either.
 		assertNull(WeekNote.lastWeek(annals, LocalDate.of(2026, 4, 10), UTC));
 	}
+
+	@Test
+	public void levelsLastWeekAreNotMovedByExperienceGainedAway()
+	{
+		// 100k Slayer in RuneLite last week, staying level 80; then 900k more on another client before logging in here.
+		long now = at(2026, 3, 2, 10);
+		Annals annals = begun(now, 80, 2_000_000L);
+		annals.stat("Slayer", 2_100_000L, 80, at(2026, 3, 3, 10), UTC, true);
+		Map<String, Long> xp = new LinkedHashMap<>();
+		Map<String, Integer> levels = new LinkedHashMap<>();
+		xp.put("Slayer", 3_000_000L);
+		levels.put("Slayer", 84);
+		annals.begin(at(2026, 3, 9, 10), UTC, "Zezima", null, xp, levels, 100);
+		WeekNote note = WeekNote.lastWeek(annals, LocalDate.of(2026, 3, 9), UTC);
+		assertNotNull(note);
+		assertEquals(100_000L, note.getWeek().totalXp());
+		// 2.0M to 2.1M is no level, whatever was gained since.
+		assertEquals(0, note.getLevels());
+		// The end of the week survives a save.
+		Annals read = GSON.fromJson(GSON.toJson(annals), Annals.class).repair();
+		assertEquals(0, WeekNote.lastWeek(read, LocalDate.of(2026, 3, 9), UTC).getLevels());
+	}
 }

@@ -283,6 +283,7 @@ public class Annals
 					week = weekOn(Week.mondayOf(java.time.LocalDate.ofEpochDay(from.d)));
 				}
 				week.xp.merge(e.getKey(), e.getValue() - before, Long::sum);
+				week.end.merge(e.getKey(), e.getValue(), Math::max);
 			}
 		}
 	}
@@ -324,7 +325,9 @@ public class Annals
 		year.endLevel.put(skill, levelNow);
 		if (xpBefore != null && xpNow > xpBefore)
 		{
-			week(now, zone).xp.merge(skill, xpNow - xpBefore, Long::sum);
+			Week week = week(now, zone);
+			week.xp.merge(skill, xpNow - xpBefore, Long::sum);
+			week.end.put(skill, xpNow);
 		}
 		xp.put(skill, xpNow);
 		levels.put(skill, levelNow);

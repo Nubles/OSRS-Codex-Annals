@@ -312,11 +312,17 @@ public class AnnalsPanel extends PluginPanel
 			return;
 		}
 		timelineKey = key;
+		// The search box moves to the new page; a new entry arriving mid-search must not take the typing away.
+		boolean typing = search.isFocusOwner();
 		replace(timeline, TimelineView.build(annals, zone, chapters, search, limit, () ->
 		{
 			limit += PAGE;
 			rebuildTimeline();
 		}, items, icons, this::refreshLater, strike));
+		if (typing)
+		{
+			search.requestFocusInWindow();
+		}
 	}
 
 	private String timelineKey()
