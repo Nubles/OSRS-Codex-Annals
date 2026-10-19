@@ -10,6 +10,7 @@ import com.codex.annals.core.WeekNote;
 import com.codex.annals.core.Goals;
 import com.codex.annals.core.Wealth;
 import com.codex.annals.ui.AnnalsPanel;
+import com.codex.annals.ui.Arrivals;
 import com.codex.annals.ui.CardActions;
 import com.codex.annals.ui.Icons;
 import com.codex.annals.ui.ItemIcons;
@@ -179,10 +180,15 @@ public class CodexAnnalsPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
+		Arrivals arrivals = new Arrivals();
 		ItemIcons items = (itemId, onLoaded) ->
 		{
 			AsyncBufferedImage image = itemManager.getImage(itemId);
-			image.onLoaded(onLoaded);
+			// A loaded picture would run the callback again at every ask, and the panel asks as it redraws.
+			if (!arrivals.arrived(itemId))
+			{
+				image.onLoaded(arrivals.watch(itemId, onLoaded));
+			}
 			return image;
 		};
 		Icons icons = name ->
