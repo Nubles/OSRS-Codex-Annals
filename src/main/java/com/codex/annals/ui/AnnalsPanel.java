@@ -85,6 +85,7 @@ public class AnnalsPanel extends PluginPanel
 	/** Whether the panel is open in the sidebar; read by the client thread, so it knows when a fresh copy is worth making. */
 	private volatile boolean open;
 	private Runnable onOpen = () -> { };
+	private boolean disposed;
 
 	public AnnalsPanel(ItemIcons items, Icons icons, CardActions actions)
 	{
@@ -127,6 +128,11 @@ public class AnnalsPanel extends PluginPanel
 	/** Sets the timer for a moment after the next midnight in the panel's time zone. */
 	private void armMidnight()
 	{
+		if (disposed)
+		{
+			// An update queued before the plugin shut down must not start the timer again.
+			return;
+		}
 		long wait = Today.untilTomorrow(System.currentTimeMillis(), zone) + 1_000;
 		midnight.setInitialDelay((int) Math.min(Integer.MAX_VALUE, wait));
 		midnight.restart();
@@ -149,6 +155,7 @@ public class AnnalsPanel extends PluginPanel
 	/** Stops the midnight timer; called when the plugin shuts down. */
 	public void dispose()
 	{
+		disposed = true;
 		midnight.stop();
 	}
 
@@ -161,7 +168,8 @@ public class AnnalsPanel extends PluginPanel
 	/** Whether the panel is open, so a copy of the annals made for it would be seen. Any thread. */
 	public boolean isOpen()
 	{
-		return open;
+		// Showing without having been told it opened would leave it stuck on an old copy; either will do.
+		return open || isShowing();
 	}
 
 	private static JScrollPane scroller()
