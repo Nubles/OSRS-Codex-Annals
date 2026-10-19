@@ -355,6 +355,8 @@ public class Annals
 			// Not a real reading: experience is never lost outside of a world that takes it, and never all of it.
 			return written;
 		}
+		// The day's first reading is where the skills stood before this change, so today's experience counts it.
+		pace.note(Instant.ofEpochMilli(now).atZone(zone).toLocalDate().toEpochDay(), xp);
 		Year year = year(now, zone);
 		year.startXp.putIfAbsent(skill, xpBefore == null ? xpNow : xpBefore);
 		year.startLevel.putIfAbsent(skill, levelBefore == null ? levelNow : levelBefore);
@@ -473,6 +475,17 @@ public class Annals
 		}
 		year(now, zone).kills.merge(name, gained, Integer::sum);
 		week(now, zone).kills.merge(name, gained, Integer::sum);
+		long day = Instant.ofEpochMilli(now).atZone(zone).toLocalDate().toEpochDay();
+		pace.note(day, xp);
+		Pace.Snap today = pace.on(day);
+		if (today != null)
+		{
+			if (today.k == null)
+			{
+				today.k = new LinkedHashMap<>();
+			}
+			today.k.merge(name, gained, Integer::sum);
+		}
 		if (count == 1)
 		{
 			return add(new Entry(Entry.Kind.BOSS, now, "First " + name, "Kill count 1").skill(null, 1));
@@ -669,6 +682,11 @@ public class Annals
 		week(now, zone).playedMs += ms;
 		long day = Instant.ofEpochMilli(now).atZone(zone).toLocalDate().toEpochDay();
 		pace.note(day, xp);
+		Pace.Snap today = pace.on(day);
+		if (today != null)
+		{
+			today.ms += ms;
+		}
 		if (year.days.isEmpty() || year.days.get(year.days.size() - 1) != day)
 		{
 			if (!year.days.contains(day))

@@ -20,6 +20,10 @@ public class Pace
 		/** The day, as an epoch day in the player's own time. */
 		long d;
 		Map<String, Long> xp = new LinkedHashMap<>();
+		/** Time logged in that day; 0 in a reading kept before this was. */
+		long ms;
+		/** Kills that day, by boss; null in a reading kept before this was. */
+		Map<String, Integer> k;
 
 		Snap()
 		{
@@ -60,6 +64,13 @@ public class Pace
 			days = new ArrayList<>();
 		}
 		days.removeIf(s -> s == null || s.xp == null);
+	}
+
+	/** The reading of that day, or null when the day has none yet. */
+	Snap on(long day)
+	{
+		Snap last = days.isEmpty() ? null : days.get(days.size() - 1);
+		return last != null && last.d == day ? last : null;
 	}
 
 	/**

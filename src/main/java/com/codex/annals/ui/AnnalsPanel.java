@@ -5,6 +5,7 @@ import com.codex.annals.core.Annals;
 import com.codex.annals.core.Chapters;
 import com.codex.annals.core.Entry;
 import com.codex.annals.core.Recap;
+import com.codex.annals.core.Today;
 import com.codex.annals.core.Goals;
 import com.codex.annals.core.Wealth;
 import com.codex.annals.core.Year;
@@ -25,6 +26,7 @@ import javax.swing.JPanel;
 import javax.swing.JScrollPane;
 import javax.swing.ScrollPaneConstants;
 import javax.swing.SwingUtilities;
+import javax.swing.Timer;
 import javax.swing.border.EmptyBorder;
 import net.runelite.client.ui.PluginPanel;
 
@@ -74,6 +76,15 @@ public class AnnalsPanel extends PluginPanel
 	private String cardNote;
 	private BufferedImage cardImage;
 	private boolean refreshPending;
+	/** The day so far, kept across rebuilds so its figures move without the timeline being built again. */
+	private final TodayCard today = new TodayCard();
+	/** The day the pages were last built on; a page built yesterday says the wrong "today". */
+	private LocalDate builtOn;
+	/** Rebuilds the pages just after midnight, so the calendar, the day so far and the forecasts turn over. */
+	private final Timer midnight = new Timer(0, e -> dayTurned());
+	/** Whether the panel is open in the sidebar; read by the client thread, so it knows when a fresh copy is worth making. */
+	private volatile boolean open;
+	private Runnable onOpen = () -> { };
 
 	public AnnalsPanel(ItemIcons items, Icons icons, CardActions actions)
 	{
@@ -108,7 +119,49 @@ public class AnnalsPanel extends PluginPanel
 			rebuildTimeline();
 			SwingUtilities.invokeLater(() -> timeline.getVerticalScrollBar().setValue(0));
 		});
+		midnight.setRepeats(false);
+		armMidnight();
 		rebuildAll();
+	}
+
+	/** Sets the timer for a moment after the next midnight in the panel's time zone. */
+	private void armMidnight()
+	{
+		long wait = Today.untilTomorrow(System.currentTimeMillis(), zone) + 1_000;
+		midnight.setInitialDelay((int) Math.min(Integer.MAX_VALUE, wait));
+		midnight.restart();
+	}
+
+	/** Midnight passed: what each page calls today has moved on, whether or not anything else did. */
+	private void dayTurned()
+	{
+		armMidnight();
+		if (isShowing())
+		{
+			rebuildAll();
+		}
+		else
+		{
+			stale = true;
+		}
+	}
+
+	/** Stops the midnight timer; called when the plugin shuts down. */
+	public void dispose()
+	{
+		midnight.stop();
+	}
+
+	/** Called on the Swing thread when the panel opens, to ask for the annals as they are now. */
+	public void onOpen(Runnable onOpen)
+	{
+		this.onOpen = onOpen;
+	}
+
+	/** Whether the panel is open, so a copy of the annals made for it would be seen. Any thread. */
+	public boolean isOpen()
+	{
+		return open;
 	}
 
 	private static JScrollPane scroller()
@@ -146,16 +199,25 @@ public class AnnalsPanel extends PluginPanel
 			stale = true;
 			return;
 		}
+		// The day so far moves with the clock and is filled in place; the timeline is rebuilt only when its entries change.
 		rebuildAll();
 	}
 
 	@Override
 	public void onActivate()
 	{
-		if (stale)
+		open = true;
+		if (stale || !LocalDate.now(zone).equals(builtOn))
 		{
 			rebuildAll();
 		}
+		onOpen.run();
+	}
+
+	@Override
+	public void onDeactivate()
+	{
+		open = false;
 	}
 
 	/** Called on the Swing thread with an entry the player chose to strike from the annals. */
@@ -248,6 +310,14 @@ public class AnnalsPanel extends PluginPanel
 	private void rebuildAll()
 	{
 		stale = false;
+		LocalDate day = LocalDate.now(zone);
+		if (!day.equals(builtOn))
+		{
+			// A new day changes what the timeline's cards say even when no entry did.
+			builtOn = day;
+			armMidnight();
+		}
+		today.show(Today.of(annals, day, zone));
 		Year thisYear = annals == null ? null : annals.getYear(LocalDate.now(zone).getYear());
 		crest.update(playerName != null ? playerName : annals == null ? null : annals.getPlayer(),
 			annals == null ? 0 : annals.getBegunAt(),
@@ -328,7 +398,7 @@ public class AnnalsPanel extends PluginPanel
 		{
 			limit += PAGE;
 			rebuildTimeline();
-		}, items, icons, this::refreshLater, strike));
+		}, items, icons, this::refreshLater, strike, today));
 		if (typing)
 		{
 			search.requestFocusInWindow();

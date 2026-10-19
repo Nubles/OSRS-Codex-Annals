@@ -43,6 +43,13 @@ final class TimelineView
 	static JComponent build(Annals annals, ZoneId zone, Segmented chapters, SearchField search, int limit, Runnable more,
 		ItemIcons items, Icons icons, Runnable onLoaded, Consumer<Entry> strike)
 	{
+		return build(annals, zone, chapters, search, limit, more, items, icons, onLoaded, strike, null);
+	}
+
+	/** @param today the day-so-far card, kept by the panel and filled on its own; or null */
+	static JComponent build(Annals annals, ZoneId zone, Segmented chapters, SearchField search, int limit, Runnable more,
+		ItemIcons items, Icons icons, Runnable onLoaded, Consumer<Entry> strike, JComponent today)
+	{
 		StackPanel stack = new StackPanel(6, 8);
 		stack.add(chapters);
 		String query = search == null ? "" : search.query();
@@ -87,6 +94,10 @@ final class TimelineView
 		}
 		else if (chapter == Entry.Chapter.ALL)
 		{
+			if (today != null)
+			{
+				stack.add(today);
+			}
 			memories(stack, annals, zone, items, icons, onLoaded);
 			lastWeek(stack, annals, zone);
 			for (Entry e : annals.getEntries())

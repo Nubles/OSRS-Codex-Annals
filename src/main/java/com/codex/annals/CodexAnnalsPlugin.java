@@ -152,6 +152,8 @@ public class CodexAnnalsPlugin extends Plugin
 	private String goalsRaw;
 	private List<Goals.Goal> goalsRead = java.util.Collections.emptyList();
 	private Wealth.Saved ledgerWealth;
+	/** Whether the panel has had a copy of these annals; until it has, one is sent even while it is closed. */
+	private boolean sent;
 
 	/** An item seen in loot a moment ago, to give a collection log entry its picture. */
 	private static final class RecentItem
@@ -210,6 +212,8 @@ public class CodexAnnalsPlugin extends Plugin
 		});
 		panel.setShowName(config.nameOnCard());
 		panel.onStrike(this::strike);
+		// Opening the panel asks for the annals as they are now; while it is closed no copy is made.
+		panel.onOpen(() -> clientThread.invokeLater(this::publish));
 		navButton = NavigationButton.builder()
 			.tooltip("Codex Annals")
 			.icon(Sigil.icon(16))
@@ -229,6 +233,7 @@ public class CodexAnnalsPlugin extends Plugin
 	protected void shutDown()
 	{
 		clientToolbar.removeNavigation(navButton);
+		panel.dispose();
 		clientThread.invokeLater(() ->
 		{
 			save();
@@ -677,6 +682,7 @@ public class CodexAnnalsPlugin extends Plugin
 		ledgerWealth = null;
 		rememberedOn = null;
 		petTicks = 0;
+		sent = false;
 		if (profile == null)
 		{
 			return;
@@ -712,15 +718,23 @@ public class CodexAnnalsPlugin extends Plugin
 		return true;
 	}
 
-	/** Sends the panel a copy of the annals, so Swing never reads what the client thread is writing. */
+	/**
+	 * Sends the panel a copy of the annals, so Swing never reads what the client thread is writing.
+	 * The copy is the whole history, so it is only made while the panel is open, or once after the
+	 * account changes; opening the panel asks for a fresh one.
+	 */
 	private void publish()
 	{
 		dirty = false;
+		AnnalsPanel target = panel;
+		if (target == null || (!target.isOpen() && sent))
+		{
+			return;
+		}
+		sent = true;
 		Annals copy = gson.fromJson(gson.toJson(annals), Annals.class).repair();
 		Player player = client.getLocalPlayer();
 		String name = client.getGameState() == GameState.LOGGED_IN && player != null ? player.getName() : null;
-		AnnalsPanel target = panel;
-		if (target != null)
 		{
 			ZoneId zone = ZoneId.systemDefault();
 			Wealth.Saved worth = wealth();
