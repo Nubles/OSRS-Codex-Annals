@@ -29,10 +29,12 @@ It is part of the **Codex** suite, with [Codex Navigator](https://github.com/Nub
 - **Your goals, dated.** Goals you pin in [Codex Navigator](https://github.com/Nubles/OSRS-Codex-Navigator) appear at the top of the Ahead tab with a date. A goal that still needs levels is dated by when each of those levels comes at the pace you really train that skill, and names the one that comes last, or the one you are not training at all. A goal that needs only quests is dated by Navigator's hours of work against the hours a day you really play, days off included. Annals only reads Navigator's goal board; without it the tab is as before.
 - **Every day of the year.** Under the months on the Year tab, every day of the year as a small square: gold where you played, teal along the streak still running, and how many days in a row it has gone. Today does not break a streak until the day is out.
 - **Year in Gielinor card.** The year on one page, drawn at double scale so the pixel fonts stay crisp. It grows all year; save it wherever you choose with RuneLite's file chooser, or copy it to the clipboard. Every earlier year stays one click away.
+- **Keepsakes.** Right-click any moment on the timeline, or among the year's highlights, and choose *Make a keepsake card*: that one moment on a gilt page of its own, its picture in a medallion and its name large, the day it came, and three figures from the road to it. For a 99, how many weeks the skill was trained and what the last week brought; for a kill count, the kills that week; for a pet, a quest or a drop, where it sits among the year's (a drop is ranked by value). With them, the day of the annals it came on, the days played by then, and the account's worth that day when [Codex Ledger](https://github.com/Nubles/OSRS-Codex-Ledger) kept a reading within three days of it (otherwise the time played by that week). Whatever else that day held is told beneath. Save it or copy it, as the year card.
 - **Milestones in chat.** When a 99, a total level or experience milestone, a first kill or a big drop is written down, a short line in the chat box says so, and on the anniversary of something in your annals a line at login remembers it ("On this day in 2025: 99 Slayer"). At your first login of a new week, a line tells what the week before held. Each can be turned off.
 
 <p align="center">
   <img src="docs/screenshots/card.png" width="360" alt="A Year in Gielinor card">
+  <img src="docs/screenshots/keepsake.png" width="360" alt="A keepsake card for one moment">
 </p>
 
 ## How it keeps the annals

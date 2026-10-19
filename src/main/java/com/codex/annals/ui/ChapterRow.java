@@ -97,11 +97,12 @@ class ChapterRow extends JComponent
 		g.setColor(tint);
 		g.drawString(fig, w - fw, base);
 		g.setColor(Theme.TEXT_MUTED);
-		// The weeks go with the dates when they fit; the name already says how long most chapters ran.
+		// The weeks go with the dates only for a season's chapter: "Three weeks of Agility" already says it.
 		int room = w - tx - fw - 8;
 		String dates = Format.shortDay(chapter.getStart()) + " to " + Format.shortDay(chapter.getEnd());
-		String full = dates + "  ·  " + chapter.getWeeks() + " weeks";
-		g.drawString(small.stringWidth(full) <= room ? full : Ui.clip(dates, small, room), tx, base);
+		String full = dates + EntryRow.DOT + chapter.getWeeks() + " weeks";
+		boolean says = !chapter.title().startsWith("The ");
+		g.drawString(!says && small.stringWidth(full) <= room ? full : Ui.clip(dates, small, room), tx, base);
 		g.dispose();
 	}
 }

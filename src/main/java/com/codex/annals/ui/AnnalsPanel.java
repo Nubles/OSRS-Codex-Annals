@@ -7,6 +7,7 @@ import com.codex.annals.core.Entry;
 import com.codex.annals.core.Recap;
 import com.codex.annals.core.Today;
 import com.codex.annals.core.Goals;
+import com.codex.annals.core.Keepsake;
 import com.codex.annals.core.Wealth;
 import com.codex.annals.core.Year;
 import java.awt.BorderLayout;
@@ -75,6 +76,8 @@ public class AnnalsPanel extends PluginPanel
 	private int tab;
 	private String cardNote;
 	private BufferedImage cardImage;
+	/** The moment the Card tab shows as a keepsake instead of the year, or null. */
+	private Entry keepsake;
 	private boolean refreshPending;
 	/** The day so far, kept across rebuilds so its figures move without the timeline being built again. */
 	private final TodayCard today = new TodayCard();
@@ -290,6 +293,11 @@ public class AnnalsPanel extends PluginPanel
 	/** Opens one tab, for previews and tests. */
 	public void showTab(int index)
 	{
+		if (index != CARD)
+		{
+			// Leaving the card page puts the year card back for the next visit.
+			keepsake = null;
+		}
 		tab = index;
 		tabs.setSelected(index, false);
 		cards.show(content, TABS[index]);
@@ -307,6 +315,13 @@ public class AnnalsPanel extends PluginPanel
 			// The chosen year may have changed on the card page.
 			rebuildYear();
 		}
+	}
+
+	/** Shows a keepsake card of one moment on the Card tab; from a row's right-click menu. */
+	public void keep(Entry entry)
+	{
+		keepsake = entry;
+		showTab(CARD);
 	}
 
 	/** Picks a chapter of the timeline, for previews and tests. */
@@ -406,7 +421,7 @@ public class AnnalsPanel extends PluginPanel
 		{
 			limit += PAGE;
 			rebuildTimeline();
-		}, items, icons, this::refreshLater, strike, today));
+		}, items, icons, this::refreshLater, strike, this::keep, today));
 		if (typing)
 		{
 			search.requestFocusInWindow();
@@ -454,12 +469,20 @@ public class AnnalsPanel extends PluginPanel
 				}
 			}
 		}
-		replace(year, YearView.build(r, before, wealthOf(r), told, yearChooser(), current, zone, items, icons, this::refreshLater));
+		replace(year, YearView.build(r, before, wealthOf(r), told, yearChooser(), current, zone, items, icons, this::refreshLater, this::keep));
 	}
 
 	private void rebuildCard()
 	{
 		StackPanel stack = new StackPanel(8, 8);
+		Keepsake kept = keepsake == null ? null : Keepsake.of(annals, Keepsake.find(annals, keepsake), wealth, zone);
+		if (kept != null)
+		{
+			keepsakeCard(stack, kept);
+			return;
+		}
+		// The moment was struck, or the account changed: the year card again.
+		keepsake = null;
 		JComponent chooser = yearChooser();
 		if (chooser != null)
 		{
@@ -476,13 +499,41 @@ public class AnnalsPanel extends PluginPanel
 		cardImage = YearCard.render(r, wealthOf(r), showName, items, icons, this::refreshLater);
 		JPanel buttons = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 0));
 		buttons.setOpaque(false);
-		buttons.add(new CodexButton("Save card", true, () -> actions.save(cardImage, shownYear)));
+		buttons.add(new CodexButton("Save card", true, () -> actions.save(cardImage, "Year in Gielinor " + shownYear)));
 		buttons.add(new CodexButton("Copy to clipboard", false, () -> actions.copy(cardImage)));
 		boolean thisYear = shownYear == LocalDate.now(zone).getYear();
 		stack.add(new SectionHeader("Year in Gielinor", thisYear ? "so far" : String.valueOf(shownYear)));
 		stack.add(new CardPreview(cardImage));
 		stack.add(buttons);
-		String note = cardNote != null ? cardNote : "Save card asks where to put the picture. Copy puts it on the clipboard, ready to paste.";
+		String note = cardNote != null ? cardNote : "Save card asks where to put the picture. Copy puts it on the clipboard, ready to paste. Right-click a moment on the timeline to make a keepsake of it.";
+		stack.add(Ui.wrapped(note, Theme.small(), cardNote != null ? Theme.TEAL : Theme.TEXT_FAINT, Views.WIDTH - 10));
+		replace(card, stack);
+	}
+
+	/** The Card tab as a keepsake: the picture, Save and Copy, and the way back to the year. */
+	private void keepsakeCard(StackPanel stack, Keepsake kept)
+	{
+		Entry e = kept.getEntry();
+		String player = showName ? (playerName != null ? playerName : annals.getPlayer()) : null;
+		cardImage = KeepsakeCard.render(kept, player, annals.getBegunAt(), items, icons, this::refreshLater);
+		String name = "Keepsake " + Keepsake.fileName(e.getTitle()) + " " + kept.getDay();
+		stack.add(new SectionHeader("Keepsake", Format.shortDay(kept.getDay()) + " " + kept.getDay().getYear()));
+		stack.add(new CardPreview(cardImage));
+		JPanel buttons = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 0));
+		buttons.setOpaque(false);
+		buttons.add(new CodexButton("Save card", true, () -> actions.save(cardImage, name)));
+		buttons.add(new CodexButton("Copy to clipboard", false, () -> actions.copy(cardImage)));
+		stack.add(buttons);
+		JPanel back = new JPanel(new FlowLayout(FlowLayout.CENTER, 0, 0));
+		back.setOpaque(false);
+		back.add(new CodexButton("Back to the year card", false, () ->
+		{
+			keepsake = null;
+			cardNote = null;
+			rebuildCard();
+		}));
+		stack.add(back);
+		String note = cardNote != null ? cardNote : "Right-click any moment on the timeline or among the year's highlights to make its keepsake.";
 		stack.add(Ui.wrapped(note, Theme.small(), cardNote != null ? Theme.TEAL : Theme.TEXT_FAINT, Views.WIDTH - 10));
 		replace(card, stack);
 	}

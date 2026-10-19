@@ -39,6 +39,27 @@ class SkillYearRow extends JComponent
 	/** Draws the row at a place and width; the card uses the same drawing. */
 	static void paint(Graphics2D g, Recap.SkillYear line, BufferedImage icon, double share, int x, int y, int w)
 	{
+		paint(g, line, icon, share, x, y, w, true);
+	}
+
+	/** Whether the line's levels fit beside its name and experience at this width. */
+	static boolean levelsFit(Graphics2D g, Recap.SkillYear line, int w)
+	{
+		FontMetrics fm = g.getFontMetrics(Theme.body());
+		FontMetrics small = g.getFontMetrics(Theme.small());
+		int gw = fm.stringWidth(Format.xp(line.getGained()));
+		int lx = 26 + fm.stringWidth(line.getSkill()) + 6;
+		return lx + small.stringWidth(levels(line)) < w - gw - 6;
+	}
+
+	private static String levels(Recap.SkillYear line)
+	{
+		return line.getEndLevel() > line.getStartLevel() ? line.getStartLevel() + " > " + line.getEndLevel() : String.valueOf(line.getEndLevel());
+	}
+
+	/** @param levels whether to show the levels it rose through, where they fit */
+	static void paint(Graphics2D g, Recap.SkillYear line, BufferedImage icon, double share, int x, int y, int w, boolean levels)
+	{
 		int iconBox = 20;
 		if (icon != null)
 		{
@@ -54,16 +75,16 @@ class SkillYearRow extends JComponent
 		String gained = Format.xp(line.getGained());
 		int gw = fm.stringWidth(gained);
 		Ui.shadowed(g, gained, x + w - gw, base, Theme.XP);
-		String levels = line.getEndLevel() > line.getStartLevel() ? line.getStartLevel() + " > " + line.getEndLevel() : String.valueOf(line.getEndLevel());
+		String rose = levels(line);
 		int nameRoom = w - (tx - x) - gw - 8;
 		String name = Ui.clip(line.getSkill(), fm, nameRoom);
 		Ui.shadowed(g, name, tx, base, Theme.TEXT);
 		g.setFont(Theme.small());
 		FontMetrics small = g.getFontMetrics();
 		int lx = tx + fm.stringWidth(name) + 6;
-		if (lx + small.stringWidth(levels) < x + w - gw - 6)
+		if (levels && lx + small.stringWidth(rose) < x + w - gw - 6)
 		{
-			Ui.shadowed(g, levels, lx, base, line.getEndLevel() > line.getStartLevel() ? Theme.GREEN : Theme.TEXT_FAINT);
+			Ui.shadowed(g, rose, lx, base, line.getEndLevel() > line.getStartLevel() ? Theme.GREEN : Theme.TEXT_FAINT);
 		}
 
 		int by = y + 22;

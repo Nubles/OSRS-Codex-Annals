@@ -10,6 +10,7 @@ import static org.junit.Assert.assertTrue;
 import com.google.gson.Gson;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Arrays;
 import org.junit.Test;
@@ -131,5 +132,31 @@ public class TodayTest
 		assertEquals(23 * 3_600_000L, Today.untilTomorrow(start, london));
 		long beforeMidnight = ZonedDateTime.of(2026, 3, 28, 23, 59, 59, 0, london).toInstant().toEpochMilli();
 		assertEquals(1_000, Today.untilTomorrow(beforeMidnight, london));
+	}
+
+	@Test
+	public void midnightWaitsOutAnHourThatComesTwiceBeforeIt()
+	{
+		// Beirut's clocks go back from midnight to 23:00 on 25 October 2026: Saturday's last hour
+		// comes twice, and the new day begins only after the second. The timer must not turn the
+		// pages at the first, or for an hour "today" would be tomorrow.
+		ZoneId beirut = ZoneId.of("Asia/Beirut");
+		long firstHalfPast = ZonedDateTime.ofLocal(java.time.LocalDateTime.of(2026, 10, 24, 23, 30), beirut, ZoneOffset.ofHours(3))
+			.toInstant().toEpochMilli();
+		long wait = Today.untilTomorrow(firstHalfPast, beirut);
+		assertEquals(90 * 60_000L, wait);
+		assertEquals(java.time.LocalDate.of(2026, 10, 25), java.time.Instant.ofEpochMilli(firstHalfPast + wait).atZone(beirut).toLocalDate());
+		assertEquals(java.time.LocalDate.of(2026, 10, 24), java.time.Instant.ofEpochMilli(firstHalfPast + wait - 1).atZone(beirut).toLocalDate());
+
+		// Havana's go back from 01:00 to midnight on 1 November 2026: the new day's first hour comes
+		// twice. Its first midnight is the turn, and the second does not turn it again.
+		ZoneId havana = ZoneId.of("America/Havana");
+		long beforeMidnight = ZonedDateTime.of(2026, 10, 31, 23, 30, 0, 0, havana).toInstant().toEpochMilli();
+		assertEquals(30 * 60_000L, Today.untilTomorrow(beforeMidnight, havana));
+		long secondHalfPast = ZonedDateTime.ofLocal(java.time.LocalDateTime.of(2026, 11, 1, 0, 30), havana, ZoneOffset.ofHours(-5))
+			.withLaterOffsetAtOverlap().toInstant().toEpochMilli();
+		assertEquals(java.time.LocalDate.of(2026, 11, 2),
+			java.time.Instant.ofEpochMilli(secondHalfPast + Today.untilTomorrow(secondHalfPast, havana)).atZone(havana).toLocalDate());
+		assertEquals(23 * 3_600_000L + 30 * 60_000L, Today.untilTomorrow(secondHalfPast, havana));
 	}
 }

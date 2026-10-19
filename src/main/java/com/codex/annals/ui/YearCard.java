@@ -54,7 +54,8 @@ public final class YearCard
 		return image;
 	}
 
-	private static void frame(Graphics2D g, int h)
+	/** The gilt page both cards are drawn on. */
+	static void frame(Graphics2D g, int h)
 	{
 		int w = WIDTH;
 		RoundRectangle2D page = new RoundRectangle2D.Float(0, 0, w, h, 18, 18);
@@ -172,10 +173,17 @@ public final class YearCard
 			header(g, "Skills", null, x, top, colW);
 			left += 24;
 			long most = skillLines.get(0).getGained();
-			for (int i = 0; i < skillLines.size() && i < SKILLS; i++)
+			int shown = Math.min(SKILLS, skillLines.size());
+			// Levels go on every line or none: one row with them and three without reads as a mistake.
+			boolean levels = true;
+			for (int i = 0; i < shown; i++)
+			{
+				levels &= SkillYearRow.levelsFit(g, skillLines.get(i), colW);
+			}
+			for (int i = 0; i < shown; i++)
 			{
 				Recap.SkillYear line = skillLines.get(i);
-				SkillYearRow.paint(g, line, skills == null ? null : skills.skill(line.getSkill()), line.getGained() / (double) most, x, left, colW);
+				SkillYearRow.paint(g, line, skills == null ? null : skills.skill(line.getSkill()), line.getGained() / (double) most, x, left, colW, levels);
 				left += 30;
 			}
 		}
@@ -197,7 +205,7 @@ public final class YearCard
 		}
 		y = Math.max(left, right) + 4;
 
-		List<Entry> highlights = new ArrayList<>(r.getHighlights());
+		List<Entry> highlights = r.getHighlightsByDate(HIGHLIGHTS);
 		if (!highlights.isEmpty())
 		{
 			header(g, "Highlights", null, x, y, w);
@@ -224,7 +232,7 @@ public final class YearCard
 				FontMetrics fm = g.getFontMetrics();
 				Ui.shadowed(g, Ui.clip(e.getTitle(), fm, edge - tx), tx, y + fm.getAscent() - 2, Theme.mix(Theme.TEXT, color, 0.3));
 				g.setFont(Theme.small());
-				String detail = EntryRow.detail(e);
+				String detail = EntryRow.detail(e, r.timesOf(e));
 				String line = detail == null ? date : date + EntryRow.DOT + detail;
 				g.setColor(Theme.TEXT_MUTED);
 				g.drawString(Ui.clip(line, small, edge - tx), tx, y + fm.getAscent() + small.getAscent());

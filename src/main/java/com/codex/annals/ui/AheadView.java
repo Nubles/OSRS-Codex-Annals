@@ -66,7 +66,7 @@ final class AheadView
 		{
 			List<String> stalled = ahead.getStalled();
 			List<String> far = ahead.getFar();
-			headline = "No max cape at this pace";
+			headline = "No max cape in sight";
 			String still = stalled.isEmpty() ? null : names(stalled) + (stalled.size() == 1 ? " has" : " have") + " not moved";
 			String slow = far.isEmpty() ? null : names(far) + (far.size() == 1 ? " is" : " are") + " more than ten years off";
 			sub = (still != null && slow != null ? still + "; " + slow : still != null ? still : slow) + ".";

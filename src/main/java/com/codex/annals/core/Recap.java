@@ -6,6 +6,7 @@ import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -97,6 +98,8 @@ public final class Recap
 	private final List<SkillYear> skills = new ArrayList<>();
 	private final List<KillYear> bosses = new ArrayList<>();
 	private final List<Entry> highlights = new ArrayList<>();
+	/** How many more times a highlighted drop came that year, beyond the one shown. */
+	private final Map<Entry, Integer> repeats = new IdentityHashMap<>();
 	private final Entry biggestDrop;
 	private int quests;
 	private int diaries;
@@ -200,7 +203,15 @@ public final class Recap
 		inYear.sort(Comparator.comparingDouble(Entry::rank).reversed().thenComparingLong(Entry::getAt));
 		for (int i = 0; i < inYear.size() && highlights.size() < highlightCount; i++)
 		{
-			highlights.add(inYear.get(i));
+			Entry e = inYear.get(i);
+			// The same drop again is one highlight told with its count, not a column of the same line.
+			Entry same = e.getKind() == Entry.Kind.DROP ? sameDrop(e) : null;
+			if (same != null)
+			{
+				repeats.merge(same, 1, Integer::sum);
+				continue;
+			}
+			highlights.add(e);
 		}
 		headline = headline(inYear);
 	}
@@ -396,6 +407,32 @@ public final class Recap
 	public List<Entry> getHighlights()
 	{
 		return Collections.unmodifiableList(highlights);
+	}
+
+	/** The most telling few highlights, told in the order they happened, as a thread reads. */
+	public List<Entry> getHighlightsByDate(int count)
+	{
+		List<Entry> shown = new ArrayList<>(highlights.subList(0, Math.min(count, highlights.size())));
+		shown.sort(Comparator.comparingLong(Entry::getAt));
+		return shown;
+	}
+
+	/** How many times a highlighted drop came that year in all; 1 for anything else. */
+	public int timesOf(Entry highlight)
+	{
+		return 1 + repeats.getOrDefault(highlight, 0);
+	}
+
+	private Entry sameDrop(Entry e)
+	{
+		for (Entry h : highlights)
+		{
+			if (h.getKind() == Entry.Kind.DROP && h.getTitle().equalsIgnoreCase(e.getTitle()))
+			{
+				return h;
+			}
+		}
+		return null;
 	}
 
 	public Entry getBiggestDrop()

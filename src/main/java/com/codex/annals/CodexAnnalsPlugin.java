@@ -199,9 +199,9 @@ public class CodexAnnalsPlugin extends Plugin
 		panel = new AnnalsPanel(items, icons, new CardActions()
 		{
 			@Override
-			public void save(BufferedImage card, int year)
+			public void save(BufferedImage card, String name)
 			{
-				saveCard(card, year);
+				saveCard(card, name);
 			}
 
 			@Override
@@ -768,15 +768,15 @@ public class CodexAnnalsPlugin extends Plugin
 	}
 
 	/** Asks where to save the card with RuneLite's own file chooser, then writes it there; runs on the Swing thread. */
-	private void saveCard(BufferedImage card, int year)
+	private void saveCard(BufferedImage card, String name)
 	{
 		List<Filepath> chosen = new Filepath.Chooser()
 			.setIsSave()
 			.setAcceptsFiles()
-			.setDialogTitle("Save Year in Gielinor card")
+			.setDialogTitle("Save " + name)
 			.addExtensionFilter("PNG image", "png")
 			.setDefaultExtension("png")
-			.setFileName("Year in Gielinor " + year + ".png")
+			.setFileName(name + ".png")
 			.showDialog(panel);
 		if (chosen == null || chosen.isEmpty())
 		{
@@ -793,7 +793,7 @@ public class CodexAnnalsPlugin extends Plugin
 			}
 			catch (IOException e)
 			{
-				log.warn("Could not save the year card", e);
+				log.warn("Could not save the card", e);
 				note = "The card could not be saved: " + e.getMessage();
 			}
 			String shown = note;

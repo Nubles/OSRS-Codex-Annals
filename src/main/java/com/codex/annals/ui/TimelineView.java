@@ -39,16 +39,11 @@ final class TimelineView
 	/**
 	 * @param limit how many rows to show before the button that shows more
 	 * @param more called to show more rows
+	 * @param keep called with an entry the player asked a keepsake card of, or null
+	 * @param today the day-so-far card, kept by the panel and filled on its own; or null
 	 */
 	static JComponent build(Annals annals, ZoneId zone, Segmented chapters, SearchField search, int limit, Runnable more,
-		ItemIcons items, Icons icons, Runnable onLoaded, Consumer<Entry> strike)
-	{
-		return build(annals, zone, chapters, search, limit, more, items, icons, onLoaded, strike, null);
-	}
-
-	/** @param today the day-so-far card, kept by the panel and filled on its own; or null */
-	static JComponent build(Annals annals, ZoneId zone, Segmented chapters, SearchField search, int limit, Runnable more,
-		ItemIcons items, Icons icons, Runnable onLoaded, Consumer<Entry> strike, JComponent today)
+		ItemIcons items, Icons icons, Runnable onLoaded, Consumer<Entry> strike, Consumer<Entry> keep, JComponent today)
 	{
 		StackPanel stack = new StackPanel(6, 8);
 		stack.add(chapters);
@@ -140,7 +135,7 @@ final class TimelineView
 				EntryRow line = new EntryRow(row.getEntry(), row.getDate(), Views.icon(row.getEntry(), items, icons, onLoaded), k == i, k == stop - 1);
 				if (row.getFolded() == 0)
 				{
-					line.strikeWith(strike);
+					line.menu(keep, strike);
 				}
 				line.setAlignmentX(JComponent.LEFT_ALIGNMENT);
 				run.add(line);

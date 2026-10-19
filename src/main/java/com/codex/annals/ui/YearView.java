@@ -21,6 +21,7 @@ final class YearView
 {
 	private static final int SKILLS = 6;
 	private static final int BOSSES = 6;
+	private static final int HIGHLIGHTS = 6;
 
 	private YearView()
 	{
@@ -33,7 +34,7 @@ final class YearView
 	 * @param currentMonth the month still being lived when this is the current year, or -1
 	 */
 	static JComponent build(Recap r, Recap before, Wealth wealth, List<Chapters.Chapter> chapters, JComponent years, int currentMonth,
-		ZoneId zone, ItemIcons items, Icons icons, Runnable onLoaded)
+		ZoneId zone, ItemIcons items, Icons icons, Runnable onLoaded, java.util.function.Consumer<Entry> keep)
 	{
 		StackPanel stack = new StackPanel(8, 8);
 		if (years != null)
@@ -125,7 +126,8 @@ final class YearView
 			}
 		}
 
-		List<Entry> highlights = r.getHighlights();
+		// The most telling moments, told in the order they came, each drop once with its count.
+		List<Entry> highlights = r.getHighlightsByDate(HIGHLIGHTS);
 		if (!highlights.isEmpty())
 		{
 			stack.add(new SectionHeader("Highlights"));
@@ -136,7 +138,8 @@ final class YearView
 			{
 				Entry e = highlights.get(i);
 				EntryRow row = new EntryRow(e, Instant.ofEpochMilli(e.getAt()).atZone(zone).toLocalDate(), Views.icon(e, items, icons, onLoaded),
-					i == 0, i == highlights.size() - 1);
+					i == 0, i == highlights.size() - 1).times(r.timesOf(e));
+				row.menu(keep, null);
 				row.setAlignmentX(JComponent.LEFT_ALIGNMENT);
 				run.add(row);
 			}
@@ -148,13 +151,24 @@ final class YearView
 		records.add(record("Longest streak", Format.plural(r.getLongestStreak(), "day", "days")));
 		records.add(record("Busiest month", busiest >= 0 ? Format.monthName(busiest) + ", " + Format.plural(r.getMonthDays()[busiest], "day", "days") : "-"));
 		Entry drop = r.getBiggestDrop();
-		records.add(record("Biggest drop", drop == null ? "-" : Format.coins(drop.getValue())));
 		if (drop != null)
 		{
-			records.add(Ui.label(drop.getTitle(), Theme.small(), Theme.GOLD));
+			records.add(record("Biggest drop", Format.coins(drop.getValue())));
+			// The item under its value, on the value's side, so the label column stays one word deep.
+			JLabel item = Ui.label(Ui.clip(drop.getTitle(), records.getFontMetrics(Theme.small()), Views.WIDTH - 24), Theme.small(), Theme.GOLD);
+			item.setHorizontalAlignment(JLabel.RIGHT);
+			item.setToolTipText(drop.getTitle());
+			records.add(item);
 		}
-		records.add(record("Clue scrolls", Format.number(r.getClues())));
-		records.add(record("Combat tasks", Format.number(r.getTasks())));
+		// A row of noughts says nothing; only what the year holds is told.
+		if (r.getClues() > 0)
+		{
+			records.add(record("Clue scrolls", Format.number(r.getClues())));
+		}
+		if (r.getTasks() > 0)
+		{
+			records.add(record("Combat tasks", Format.number(r.getTasks())));
+		}
 		if (wealth != null)
 		{
 			records.add(record(wealth.isPartial() ? "Worth since " + Format.shortDay(Instant.ofEpochMilli(wealth.getFrom()).atZone(zone).toLocalDate())
