@@ -628,6 +628,7 @@ public class CodexAnnalsPlugin extends Plugin
 		recentLoot.clear();
 		ledgerRaw = null;
 		ledgerWealth = null;
+		rememberedOn = null;
 		petTicks = 0;
 		if (profile == null)
 		{

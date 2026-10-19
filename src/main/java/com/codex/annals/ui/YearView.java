@@ -149,6 +149,12 @@ final class YearView
 		card.add(versus("Boss kills", r.getKills(), before.getKills(), false));
 		card.add(versus("Quests", r.getQuests(), before.getQuests(), false));
 		stack.add(card);
+		if (before.getFirstMonth() > 0)
+		{
+			// The annals began part way through the year before, so it holds only some of that year.
+			stack.add(Ui.wrapped(before.getYear() + " was only kept from " + Format.monthName(before.getFirstMonth()) + ".",
+				Theme.small(), Theme.TEXT_FAINT, Views.WIDTH - 10));
+		}
 	}
 
 	/** "Levels  41  +12": this year's figure and how far it is from the year before's. */
