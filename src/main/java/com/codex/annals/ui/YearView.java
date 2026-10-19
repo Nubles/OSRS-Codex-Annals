@@ -125,10 +125,14 @@ final class YearView
 		{
 			records.add(record(wealth.isPartial() ? "Worth since " + Format.shortDay(Instant.ofEpochMilli(wealth.getFrom()).atZone(zone).toLocalDate())
 				: "Worth", Format.signedCoins(wealth.change())));
-			records.add(Ui.wrapped(Format.coins(wealth.getStart()) + " to " + Format.coins(wealth.getEnd()) + ", as Codex Ledger counted it",
-				Theme.small(), Theme.TEXT_FAINT, Views.WIDTH - 30));
 		}
 		stack.add(records);
+		if (wealth != null)
+		{
+			// Beneath the card: a line that wraps would stretch every row of the records with it.
+			stack.add(Ui.wrapped("Worth went from " + Format.coins(wealth.getStart()) + " to " + Format.coins(wealth.getEnd())
+				+ ", as Codex Ledger counted it.", Theme.small(), Theme.TEXT_FAINT, Views.WIDTH - 10));
+		}
 		if (before != null)
 		{
 			compare(stack, r, before, currentMonth >= 0);
