@@ -64,11 +64,34 @@ public final class Memories
 		for (int years = 1; years <= today.getYear() - begun.getYear(); years++)
 		{
 			LocalDate then = today.minusYears(years);
-			add(found, best(annals, then, zone, 2), years == 1 ? "One year ago" : "In " + then.getYear(), years);
+			add(found, best(annals, same(today, then), zone, 2), years == 1 ? "One year ago" : "In " + then.getYear(), years);
 		}
-		add(found, best(annals, today.minusMonths(6), zone, 1), "Six months ago", 0);
-		add(found, best(annals, today.minusMonths(1), zone, 1), "A month ago", 0);
+		add(found, best(annals, same(today, today.minusMonths(6)), zone, 1), "Six months ago", 0);
+		add(found, best(annals, same(today, today.minusMonths(1)), zone, 1), "A month ago", 0);
 		return found.size() > MAX ? new ArrayList<>(found.subList(0, MAX)) : found;
+	}
+
+	/**
+	 * The days that come round on today: the same date, or nothing when that date does not exist
+	 * then (30 March has no 30 February; its day was told on the 28th). On the last day of a month
+	 * the days it lacks come round too, so a leap day is told on 28 February in other years.
+	 */
+	private static List<LocalDate> same(LocalDate today, LocalDate then)
+	{
+		List<LocalDate> days = new ArrayList<>();
+		if (then.getDayOfMonth() != today.getDayOfMonth())
+		{
+			return days;
+		}
+		days.add(then);
+		if (today.getDayOfMonth() == today.lengthOfMonth())
+		{
+			for (int d = then.getDayOfMonth() + 1; d <= then.lengthOfMonth(); d++)
+			{
+				days.add(then.withDayOfMonth(d));
+			}
+		}
+		return days;
 	}
 
 	private static void add(List<Memory> found, List<Entry> entries, String when, int years)
@@ -80,7 +103,7 @@ public final class Memories
 	}
 
 	/** The most telling entries of a day, leaving out ordinary low levels. */
-	private static List<Entry> best(Annals annals, LocalDate day, ZoneId zone, int limit)
+	private static List<Entry> best(Annals annals, List<LocalDate> days, ZoneId zone, int limit)
 	{
 		List<Entry> day0 = new ArrayList<>();
 		for (Entry e : annals.entries)
@@ -89,7 +112,7 @@ public final class Memories
 			{
 				continue;
 			}
-			if (Instant.ofEpochMilli(e.at).atZone(zone).toLocalDate().equals(day))
+			if (days.contains(Instant.ofEpochMilli(e.at).atZone(zone).toLocalDate()))
 			{
 				day0.add(e);
 			}

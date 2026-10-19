@@ -162,7 +162,8 @@ public final class Ahead
 		ahead.nineties.sort(soonest);
 		ahead.beyond.sort(soonest);
 
-		if (year != null)
+		// Kill counts go by this year's kills alone, so they wait for a week of the year too.
+		if (year != null && yearDays >= MIN_DAYS)
 		{
 			for (Map.Entry<String, Integer> e : year.kills.entrySet())
 			{

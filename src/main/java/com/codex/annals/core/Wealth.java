@@ -96,13 +96,15 @@ public final class Wealth
 				last = p;
 			}
 		}
-		if (first == null && (before == null || !current))
+		// Nothing read this year: the ledger was not kept, or was removed and its old save is left
+		// behind, and its worth then is not the worth now.
+		if (first == null)
 		{
 			return null;
 		}
 		long start = before != null ? before.v : first.v;
 		long from = before != null ? yearStart : first.t;
-		long end = current ? saved.total : last != null ? last.v : start;
+		long end = current ? saved.total : last.v;
 		return new Wealth(year, start, end, from, before == null);
 	}
 

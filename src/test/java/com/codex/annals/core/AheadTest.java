@@ -113,6 +113,43 @@ public class AheadTest
 	}
 
 	@Test
+	public void aFewDaysIntoTheYearIsTooEarlyForAKillPace()
+	{
+		// Four weeks of skill pace from last year, then two kills on the first day of the new one.
+		Annals annals = fourWeeks(at(2025, 12, 4, 12));
+		annals.killCount("Vorkath", 40, at(2025, 12, 31, 13), UTC);
+		annals.killCount("Vorkath", 42, at(2026, 1, 1, 13), UTC);
+		annals.tick(at(2026, 1, 2, 14), 600, UTC);
+		Ahead ahead = Ahead.of(annals, LocalDate.of(2026, 1, 2), UTC);
+		assertTrue(ahead.hasPace());
+		// One kill a day over two days would put Vorkath 50 a week off: too little to go on.
+		assertTrue(ahead.getKills().isEmpty());
+		// A week in, the year's kills are a pace.
+		annals.killCount("Vorkath", 47, at(2026, 1, 7, 13), UTC);
+		assertEquals("Vorkath 50", Ahead.of(annals, LocalDate.of(2026, 1, 7), UTC).getKills().get(0).getTitle());
+	}
+
+	@Test
+	public void monthEndsAndLeapDaysAreRememberedOnceEach()
+	{
+		long start = at(2024, 1, 10, 12);
+		Annals annals = begun(start, 98, 12_000_000L);
+		annals.record(new Entry(Entry.Kind.QUEST, at(2024, 2, 29, 18), "Monkey Madness II", "Quest complete"), at(2024, 2, 29, 18), UTC);
+		annals.record(new Entry(Entry.Kind.QUEST, at(2025, 2, 28, 18), "Song of the Elves", "Quest complete"), at(2025, 2, 28, 18), UTC);
+		// A leap day comes back round on the last day of February in the years between.
+		List<Memories.Memory> feb28 = Memories.of(annals, LocalDate.of(2025, 2, 28), UTC);
+		assertEquals(1, feb28.size());
+		assertEquals("Monkey Madness II", feb28.get(0).getEntry().getTitle());
+		// A month on from 28 February is 28 March only, not the 29th, 30th and 31st as well.
+		assertEquals(1, Memories.of(annals, LocalDate.of(2025, 3, 28), UTC).size());
+		assertTrue(Memories.of(annals, LocalDate.of(2025, 3, 30), UTC).isEmpty());
+		assertTrue(Memories.of(annals, LocalDate.of(2025, 3, 31), UTC).isEmpty());
+		// Six months on from 29 February 2024 is 29 August, not the 30th and 31st too.
+		assertEquals(1, Memories.of(annals, LocalDate.of(2024, 8, 29), UTC).size());
+		assertTrue(Memories.of(annals, LocalDate.of(2024, 8, 31), UTC).isEmpty());
+	}
+
+	@Test
 	public void remembersThisDayInEarlierYears()
 	{
 		long start = at(2025, 3, 1, 12);
@@ -162,6 +199,11 @@ public class AheadTest
 		assertEquals(0, last.change());
 		assertNull(Wealth.of(saved, 2024, UTC, false));
 		assertNull(Wealth.of(new Wealth.Saved(), 2026, UTC, true));
+		// A ledger last kept in 2025 says nothing of 2026: its total is that old worth, not today's.
+		List<Wealth.Point> stopped = new ArrayList<>();
+		stopped.add(new Wealth.Point(at(2025, 3, 1, 20), 400_000_000L));
+		stopped.add(new Wealth.Point(at(2025, 4, 1, 20), 450_000_000L));
+		assertNull(Wealth.of(new Wealth.Saved(450_000_000L, stopped), 2026, UTC, true));
 	}
 
 	@Test
