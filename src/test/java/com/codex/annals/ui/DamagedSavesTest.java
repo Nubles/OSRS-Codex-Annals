@@ -210,6 +210,12 @@ public class DamagedSavesTest
 		assertTrue(part.damaged);
 		assertEquals(29, part.annals.getEntries().size());
 		assertTrue(part.annals.isBegun());
+		// The day the annals began is damaged: they are still begun, on their first entry's day, so
+		// the next login does not begin them a second time over the history kept.
+		Annals.Loaded undated = Annals.read(GSON, save.replaceFirst("\"begunAt\":\\d+", "\"begunAt\":\"once\""));
+		assertTrue(undated.annals.isBegun());
+		assertEquals(good.getBegunAt(), undated.annals.getBegunAt());
+		assertEquals(good.getEntries().size(), undated.annals.getEntries().size());
 		assertFalse(Annals.read(GSON, save).damaged);
 		assertFalse(Annals.read(GSON, null).damaged);
 	}

@@ -64,6 +64,14 @@ public class Pace
 			days = new ArrayList<>();
 		}
 		days.removeIf(s -> s == null || s.xp == null);
+		for (Snap s : days)
+		{
+			s.xp.entrySet().removeIf(e -> e.getKey() == null || e.getValue() == null || e.getValue() < 0);
+			if (s.k != null)
+			{
+				s.k.entrySet().removeIf(e -> e.getKey() == null || e.getValue() == null || e.getValue() < 0);
+			}
+		}
 	}
 
 	/** The reading of that day, or null when the day has none yet. */

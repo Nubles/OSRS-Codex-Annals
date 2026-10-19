@@ -311,6 +311,11 @@ public class Annals
 		{
 			xp = new LinkedHashMap<>();
 		}
+		// A figure missing or below zero is damage; read as it is, it stops the Ahead tab drawing.
+		kc.entrySet().removeIf(e -> e.getKey() == null || e.getValue() == null || e.getValue() < 0);
+		levels.entrySet().removeIf(e -> e.getKey() == null || e.getValue() == null || e.getValue() < 1);
+		xp.entrySet().removeIf(e -> e.getKey() == null || e.getValue() == null || e.getValue() < 0);
+		combat = Math.max(0, combat);
 		if (pace == null)
 		{
 			pace = new Pace();
@@ -334,6 +339,24 @@ public class Annals
 		}
 		// A save holding more than the annals keep, damaged or edited by hand, is brought within it.
 		compact();
+		if (begunAt <= 0 && !entries.isEmpty())
+		{
+			// The day they began was lost to damage; the history says when it was, so the next
+			// login does not begin the annals a second time over it.
+			long first = Long.MAX_VALUE;
+			for (Entry e : entries)
+			{
+				first = e.getKind() == Entry.Kind.BEGIN ? Math.min(first, e.getAt()) : first;
+			}
+			if (first == Long.MAX_VALUE)
+			{
+				for (Entry e : entries)
+				{
+					first = Math.min(first, e.getAt());
+				}
+			}
+			begunAt = Math.max(1, first);
+		}
 		return this;
 	}
 
