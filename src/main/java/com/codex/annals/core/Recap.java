@@ -108,6 +108,8 @@ public final class Recap
 	private final String headline;
 	private final long begunAt;
 	private final int firstMonth;
+	/** Days played, as epoch days, oldest first. */
+	private final List<Long> days;
 
 	private Recap(Annals annals, Year y, ZoneId zone, int highlightCount)
 	{
@@ -118,6 +120,7 @@ public final class Recap
 		firstMonth = begunAt > 0 && begun.getYear() == year ? begun.getMonthValue() - 1 : 0;
 		playedMs = y.playedMs;
 		daysPlayed = y.days.size();
+		days = java.util.Collections.unmodifiableList(new java.util.ArrayList<>(y.days));
 		longestStreak = streak(y.days);
 		xpGained = y.totalGained();
 		levelsGained = y.levelsGained();
@@ -278,6 +281,29 @@ public final class Recap
 			last = day;
 		}
 		return best;
+	}
+
+	/**
+	 * Days played back to back up to today: counted from yesterday while today is not played
+	 * yet, so a streak is not lost before the day is out.
+	 */
+	public static int currentStreak(List<Long> days, long today)
+	{
+		java.util.Set<Long> played = new java.util.HashSet<>(days);
+		long day = played.contains(today) ? today : today - 1;
+		int n = 0;
+		while (played.contains(day))
+		{
+			n++;
+			day--;
+		}
+		return n;
+	}
+
+	/** Days played in the year, as epoch days in the player's own time, oldest first. */
+	public List<Long> getDays()
+	{
+		return days;
 	}
 
 	public int getYear()

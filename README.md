@@ -15,6 +15,8 @@ It is part of the **Codex** suite, with [Codex Navigator](https://github.com/Nub
   <img src="docs/screenshots/last-week.png" width="225" alt="Last week">
   <img src="docs/screenshots/chapters.png" width="225" alt="Chapters">
   <img src="docs/screenshots/search.png" width="225" alt="Search">
+  <img src="docs/screenshots/goals.png" width="225" alt="Goals from Codex Navigator, dated">
+  <img src="docs/screenshots/days.png" width="225" alt="Every day of the year">
 </p>
 
 ## What it does
@@ -23,6 +25,8 @@ It is part of the **Codex** suite, with [Codex Navigator](https://github.com/Nub
 - **Year.** One year told in full: its headline ("The year of 99 Ranged"), hours and days played, levels and experience gained, log slots, quests and diaries, a month-by-month strip lit by how much you played, the skills and bosses it was spent on, its highlights and its records (longest streak, busiest month, biggest drop), then the year set against the one before it. With [Codex Ledger](https://github.com/Nubles/OSRS-Codex-Ledger) installed too, the year's change in worth joins the records, and the card when the ledger kept the whole year. Annals only reads the ledger's save; it works the same without it.
 - **Chapters.** The stretches of weeks your year was spent on, found from what each week's experience and kills went to and named for how long they ran: "A fortnight of Agility", "The Zulrah spring", "The Slayer summer". A week of combat counts as a boss's week when you killed that boss often, or as a Slayer week when Slayer kept pace with your combat; a single week away, or not played, does not end a chapter. They sit on the Year tab under the months.
 - **Ahead.** When each skill reaches 99 at the pace you keep, the next total level, when the max cape falls (or which skills stand in its way), skills at 99 on their way to 200M, and your next kill count milestones. The pace is the last four weeks', counting every day whether you played or not, so the dates are honest ones; until the annals have that, it is this year's so far.
+- **Your goals, dated.** Goals you pin in [Codex Navigator](https://github.com/Nubles/OSRS-Codex-Navigator) appear at the top of the Ahead tab with a date. A goal that still needs levels is dated by when each of those levels comes at the pace you really train that skill, and names the one that comes last, or the one you are not training at all. A goal that needs only quests is dated by Navigator's hours of work against the hours a day you really play, days off included. Annals only reads Navigator's goal board; without it the tab is as before.
+- **Every day of the year.** Under the months on the Year tab, every day of the year as a small square: gold where you played, teal along the streak still running, and how many days in a row it has gone. Today does not break a streak until the day is out.
 - **Year in Gielinor card.** The year on one page, drawn at double scale so the pixel fonts stay crisp. It grows all year; save it wherever you choose with RuneLite's file chooser, or copy it to the clipboard. Every earlier year stays one click away.
 - **Milestones in chat.** When a 99, a total level or experience milestone, a first kill or a big drop is written down, a short line in the chat box says so, and on the anniversary of something in your annals a line at login remembers it ("On this day in 2025: 99 Slayer"). At your first login of a new week, a line tells what the week before held. Each can be turned off.
 

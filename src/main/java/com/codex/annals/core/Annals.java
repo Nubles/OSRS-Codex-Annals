@@ -1,6 +1,7 @@
 package com.codex.annals.core;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
@@ -206,6 +207,42 @@ public class Annals
 	}
 
 	/** Every week kept, oldest first. Read only. */
+	/**
+	 * Hours played a day over about the last four weeks, days off included, from the weeks kept;
+	 * this year's so far until the annals have a week of play to go on. 0 when nothing is known.
+	 */
+	public double hoursPerDay(LocalDate today, ZoneId zone)
+	{
+		long begun = begunAt > 0 ? Instant.ofEpochMilli(begunAt).atZone(zone).toLocalDate().toEpochDay() : today.toEpochDay();
+		// Whole weeks: from the Monday of the week four weeks back, or the day the annals began.
+		long monday = Week.mondayOf(today.minusDays(Pace.DAYS - 1));
+		long start = Math.max(monday, Math.min(begun, today.toEpochDay()));
+		long ms = 0;
+		if (weeks != null)
+		{
+			for (Week w : weeks)
+			{
+				if (w.w >= monday && w.w <= today.toEpochDay())
+				{
+					ms += w.playedMs;
+				}
+			}
+		}
+		long days = today.toEpochDay() - start + 1;
+		if (weeks != null && days >= Ahead.MIN_DAYS)
+		{
+			return ms / 3_600_000.0 / days;
+		}
+		Year year = getYear(today.getYear());
+		if (year == null)
+		{
+			return 0;
+		}
+		long yearStart = Math.max(today.withDayOfYear(1).toEpochDay(), Math.min(begun, today.toEpochDay()));
+		long yearDays = today.toEpochDay() - yearStart + 1;
+		return yearDays < Ahead.MIN_DAYS ? 0 : year.playedMs / 3_600_000.0 / yearDays;
+	}
+
 	public List<Week> getWeeks()
 	{
 		return weeks == null ? Collections.emptyList() : Collections.unmodifiableList(weeks);

@@ -5,6 +5,7 @@ import com.codex.annals.core.Annals;
 import com.codex.annals.core.Chapters;
 import com.codex.annals.core.Entry;
 import com.codex.annals.core.Recap;
+import com.codex.annals.core.Goals;
 import com.codex.annals.core.Wealth;
 import com.codex.annals.core.Year;
 import java.awt.BorderLayout;
@@ -57,6 +58,7 @@ public class AnnalsPanel extends PluginPanel
 	private final JScrollPane card = scroller();
 	/** Codex Ledger's saved worth, when that plugin is kept too. */
 	private Wealth.Saved wealth;
+	private List<Goals.Goal> goals = Collections.emptyList();
 
 	private Annals annals;
 	private ZoneId zone = ZoneId.systemDefault();
@@ -283,6 +285,12 @@ public class AnnalsPanel extends PluginPanel
 		});
 	}
 
+	/** The goals pinned in Codex Navigator; dated on the Ahead tab at the next rebuild. */
+	public void setGoals(List<Goals.Goal> goals)
+	{
+		this.goals = goals == null ? Collections.emptyList() : goals;
+	}
+
 	/** Codex Ledger's saved worth, or null when it is not kept; shown at the next rebuild. */
 	public void setWealth(Wealth.Saved wealth)
 	{
@@ -298,7 +306,9 @@ public class AnnalsPanel extends PluginPanel
 	{
 		LocalDate today = LocalDate.now(zone);
 		Ahead forecast = annals == null ? null : Ahead.of(annals, today, zone);
-		replace(ahead, AheadView.build(forecast, today, annals == null ? Collections.emptyMap() : annals.getExperience(), icons));
+		List<Goals.Forecast> dated = annals == null ? Collections.emptyList()
+			: Goals.forecast(goals, forecast, today, annals.hoursPerDay(today, zone));
+		replace(ahead, AheadView.build(forecast, today, annals == null ? Collections.emptyMap() : annals.getExperience(), icons, dated));
 	}
 
 	/** What the timeline was last built from; when only the clock moved, it is left as it is. */

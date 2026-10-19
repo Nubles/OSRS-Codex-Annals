@@ -84,6 +84,10 @@ public final class Ahead
 	private final List<String> stalled = new ArrayList<>();
 	private final List<String> far = new ArrayList<>();
 	private boolean maxed;
+	private LocalDate today;
+	/** Each skill's experience now and a day at this pace. */
+	private final Map<String, Long> xpNow = new java.util.HashMap<>();
+	private final Map<String, Double> perDay = new java.util.HashMap<>();
 
 	private Ahead(int days, boolean recent)
 	{
@@ -103,6 +107,7 @@ public final class Ahead
 		boolean recent = paceDays >= MIN_DAYS && (paceDays >= Pace.DAYS || year == null || paceDays >= yearDays);
 		int days = recent ? paceDays : year != null ? yearDays : 0;
 		Ahead ahead = new Ahead(days, recent);
+		ahead.today = today;
 		if (days < MIN_DAYS)
 		{
 			return ahead;
@@ -121,6 +126,8 @@ public final class Ahead
 			names[i] = skill;
 			xp[i] = e.getValue();
 			rate[i] = Math.max(0, e.getValue() - from) / (double) days;
+			ahead.xpNow.put(skill, xp[i]);
+			ahead.perDay.put(skill, rate[i]);
 			i++;
 		}
 
@@ -237,6 +244,21 @@ public final class Ahead
 		}
 		double ahead = Math.ceil(remaining / perDay);
 		return ahead > HORIZON_DAYS ? null : today.plusDays(Math.max(1, (long) ahead));
+	}
+
+	/**
+	 * When a skill reaches a level at this pace: today when it already has, null when it is not
+	 * moving or not within ten years, or when there is no pace yet.
+	 */
+	public LocalDate whenLevel(String skill, int level)
+	{
+		Long xp = xpNow.get(skill);
+		if (xp == null || today == null)
+		{
+			return null;
+		}
+		long need = Experience.forLevel(level) - xp;
+		return need <= 0 ? today : date(today, need, perDay.getOrDefault(skill, 0.0));
 	}
 
 	/** Days the pace was taken over; fewer than a week means it is too early to say. */

@@ -1,6 +1,7 @@
 package com.codex.annals.ui;
 
 import com.codex.annals.core.Ahead;
+import com.codex.annals.core.Goals;
 import java.awt.BorderLayout;
 import java.time.LocalDate;
 import java.time.format.DateTimeFormatter;
@@ -17,6 +18,7 @@ final class AheadView
 {
 	private static final int NINETIES = 6;
 	private static final int OTHERS = 4;
+	private static final int GOALS = 4;
 	private static final long MAX_99 = 13_034_431L;
 	private static final DateTimeFormatter SOON = DateTimeFormatter.ofPattern("d MMM", Locale.ENGLISH);
 	private static final DateTimeFormatter LATER = DateTimeFormatter.ofPattern("MMM yyyy", Locale.ENGLISH);
@@ -29,7 +31,7 @@ final class AheadView
 	/**
 	 * @param xp each skill's experience now, for how far along each 99 is
 	 */
-	static JComponent build(Ahead ahead, LocalDate today, Map<String, Long> xp, Icons icons)
+	static JComponent build(Ahead ahead, LocalDate today, Map<String, Long> xp, Icons icons, List<Goals.Forecast> goals)
 	{
 		StackPanel stack = new StackPanel(8, 8);
 		if (ahead == null)
@@ -78,6 +80,15 @@ final class AheadView
 		hero.add(Ui.wrapped(sub, Theme.small(), Theme.TEXT_MUTED, Views.WIDTH - 30), BorderLayout.CENTER);
 		stack.add(hero);
 
+		if (!goals.isEmpty())
+		{
+			stack.add(new SectionHeader("Your goals", "from Codex Navigator"));
+			for (int i = 0; i < goals.size() && i < GOALS; i++)
+			{
+				stack.add(goal(goals.get(i), today, icons));
+			}
+		}
+
 		List<Ahead.Mark> nineties = ahead.getNineties();
 		if (!nineties.isEmpty())
 		{
@@ -120,9 +131,60 @@ final class AheadView
 			}
 		}
 		String basis = ahead.isRecent() ? "the last " + ahead.getDays() + " days" : "this year so far (" + ahead.getDays() + " days)";
-		stack.add(Ui.wrapped("Paced on " + basis + ", every day counted whether you played or not. Kill counts go by this year's kills.",
+		stack.add(Ui.wrapped("Paced on " + basis + ", every day counted whether you played or not. Kill counts go by this year's kills."
+				+ (goals.isEmpty() ? " Goals you pin in Codex Navigator are dated here too." : ""),
 			Theme.small(), Theme.TEXT_FAINT, Views.WIDTH - 10));
 		return stack;
+	}
+
+	/**
+	 * A goal: dated by the levels it needs at each skill's own pace, or, when it needs none, by
+	 * its hours of work against the hours a day really played.
+	 */
+	private static AheadRow goal(Goals.Forecast f, LocalDate today, Icons icons)
+	{
+		Goals.Goal g = f.getGoal();
+		String hours = g.getHoursLeft() > 0 ? hours(g.getHoursLeft()) + " of work" : null;
+		String note;
+		String tip = g.getTitle() + ".";
+		if (!f.getStalled().isEmpty())
+		{
+			String skill = f.getStalled().get(0);
+			note = skill + " " + g.getSkills().get(skill) + (f.getStalled().size() > 1 ? " and more" : "") + " not moving";
+			tip += " " + names(f.getStalled()) + (f.getStalled().size() == 1 ? " is" : " are") + " not being trained fast enough to date.";
+		}
+		else if (f.getLast() != null)
+		{
+			note = f.getLast() + " " + g.getSkills().get(f.getLast()) + (g.getSkills().size() > 1 ? " comes last" : "");
+			tip += " The levels it needs come by around " + FULL.format(f.getLevels()) + " at the pace you train them.";
+		}
+		else
+		{
+			note = hours != null ? hours : g.getQuests() > 0 ? Format.plural(g.getQuests(), "quest", "quests") + " left" : "almost there";
+			if (f.getAllIn() != null)
+			{
+				tip += " About " + hours(g.getHoursLeft()) + " of work: around " + FULL.format(f.getAllIn()) + " if all your play went to it.";
+			}
+		}
+		if (f.getLast() != null && hours != null)
+		{
+			tip += " Codex Navigator counts about " + hours + " of work left.";
+		}
+		if (g.getNext() != null)
+		{
+			tip += " Next: " + g.getNext() + ".";
+		}
+		LocalDate date = f.getDate();
+		String when = date != null ? when(date, today) : f.getStalled().isEmpty() ? "-" : "no date";
+		java.awt.image.BufferedImage icon = f.getLast() != null && icons != null ? icons.skill(f.getLast())
+			: !f.getStalled().isEmpty() && icons != null ? icons.skill(f.getStalled().get(0)) : null;
+		return new AheadRow(icon, g.getTitle(), note, when, date != null ? Theme.GOLD : Theme.TEXT_FAINT, g.getProgress(), tip);
+	}
+
+	/** "14h", "1.5h", "under an hour". */
+	private static String hours(double h)
+	{
+		return h < 1 ? "under an hour" : trim(h) + "h";
 	}
 
 	private static AheadRow row(Ahead.Mark m, LocalDate today, Icons icons, java.awt.Color color, double progress, String note)

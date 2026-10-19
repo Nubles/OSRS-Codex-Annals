@@ -7,7 +7,9 @@ import com.codex.annals.core.Wealth;
 import java.awt.BorderLayout;
 import java.awt.GridLayout;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.List;
 import javax.swing.BoxLayout;
 import javax.swing.JComponent;
@@ -68,6 +70,20 @@ final class YearView
 		int busiest = r.busiestMonth();
 		stack.add(new SectionHeader("Months", busiest >= 0 ? "busiest " + Format.monthName(busiest) : null));
 		stack.add(new MonthStrip(r.getMonthDays(), r.getMonthEntries(), currentMonth, r.getFirstMonth()));
+
+		// Every day of the year, and the streak still running when it is this year.
+		long today = LocalDate.now(zone).toEpochDay();
+		long first = r.getBegunAt() > 0 ? Instant.ofEpochMilli(r.getBegunAt()).atZone(zone).toLocalDate().toEpochDay() : Long.MIN_VALUE;
+		List<Long> days = new ArrayList<>(r.getDays());
+		if (before != null)
+		{
+			days.addAll(before.getDays());
+		}
+		int streak = currentMonth >= 0 ? Recap.currentStreak(days, today) : 0;
+		stack.add(new SectionHeader("Days", streak > 1 ? streak + " in a row now" : r.getLongestStreak() > 1 ? "best run " + r.getLongestStreak() : null));
+		Card calendar = new Card(new BorderLayout());
+		calendar.add(new DayCalendar(r.getYear(), r.getDays(), today, first, streak), BorderLayout.CENTER);
+		stack.add(calendar);
 
 		if (chapters != null && !chapters.isEmpty())
 		{

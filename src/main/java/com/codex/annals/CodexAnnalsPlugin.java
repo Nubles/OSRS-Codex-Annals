@@ -7,6 +7,7 @@ import com.codex.annals.core.Entry;
 import com.codex.annals.core.Memories;
 import com.codex.annals.core.Week;
 import com.codex.annals.core.WeekNote;
+import com.codex.annals.core.Goals;
 import com.codex.annals.core.Wealth;
 import com.codex.annals.ui.AnnalsPanel;
 import com.codex.annals.ui.CardActions;
@@ -147,6 +148,9 @@ public class CodexAnnalsPlugin extends Plugin
 	private LocalDate rememberedOn;
 	/** Codex Ledger's save as last read, and what was read from it; read again only when it changes. */
 	private String ledgerRaw;
+	/** Codex Navigator's goal board as last read, and its goals; read again only when it changes. */
+	private String goalsRaw;
+	private List<Goals.Goal> goalsRead = java.util.Collections.emptyList();
 	private Wealth.Saved ledgerWealth;
 
 	/** An item seen in loot a moment ago, to give a collection log entry its picture. */
@@ -296,6 +300,12 @@ public class CodexAnnalsPlugin extends Plugin
 	@Subscribe
 	public void onConfigChanged(ConfigChanged event)
 	{
+		if (Goals.GROUP.equals(event.getGroup()) && event.getKey() != null && event.getKey().endsWith(Goals.KEY))
+		{
+			// Codex Navigator pinned, finished or moved a goal: the Ahead tab dates it.
+			clientThread.invokeLater(this::publish);
+			return;
+		}
 		// The annals themselves are saved in this group too; only the card's name setting concerns the panel.
 		if (!CodexAnnalsConfig.GROUP.equals(event.getGroup()) || !"nameOnCard".equals(event.getKey()))
 		{
@@ -474,6 +484,22 @@ public class CodexAnnalsPlugin extends Plugin
 			}
 		}
 		return ledgerWealth;
+	}
+
+	/** The goals pinned in Codex Navigator for this account, read only; empty without it. */
+	private List<Goals.Goal> goals()
+	{
+		if (profile == null)
+		{
+			return java.util.Collections.emptyList();
+		}
+		String raw = configManager.getConfiguration(Goals.GROUP, profile, Goals.KEY);
+		if (raw == null || !raw.equals(goalsRaw))
+		{
+			goalsRaw = raw;
+			goalsRead = Goals.read(gson, raw);
+		}
+		return goalsRead;
 	}
 
 	@Subscribe
@@ -698,9 +724,11 @@ public class CodexAnnalsPlugin extends Plugin
 		{
 			ZoneId zone = ZoneId.systemDefault();
 			Wealth.Saved worth = wealth();
+			List<Goals.Goal> goals = goals();
 			SwingUtilities.invokeLater(() ->
 			{
 				target.setWealth(worth);
+				target.setGoals(goals);
 				target.update(copy.isBegun() ? copy : null, zone, name);
 			});
 		}
