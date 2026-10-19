@@ -1,5 +1,11 @@
 package com.codex.annals.core;
 
+import com.google.gson.Gson;
+import com.google.gson.JsonElement;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonToken;
+import java.io.IOException;
+import java.io.StringReader;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -103,6 +109,174 @@ public class Annals
 		return Collections.unmodifiableMap(kc);
 	}
 
+	/** A saved annals as read back: what could be kept, and whether anything was left out. */
+	public static final class Loaded
+	{
+		/** What was read; fresh, unbegun annals when nothing could be. Never null. */
+		public final Annals annals;
+		/** True when the save was not read whole, so it is worth setting aside as it was. */
+		public final boolean damaged;
+
+		Loaded(Annals annals, boolean damaged)
+		{
+			this.annals = annals;
+			this.damaged = damaged;
+		}
+	}
+
+	/**
+	 * Reads saved annals. A save that reads whole is repaired and kept; one that does not (an
+	 * entry of the wrong shape, a figure too big for its field, a save cut short) keeps every
+	 * entry, year, week and figure that still reads, so one damaged line never costs the history.
+	 */
+	public static Loaded read(Gson gson, String saved)
+	{
+		if (saved == null || saved.trim().isEmpty())
+		{
+			return new Loaded(new Annals(), false);
+		}
+		try
+		{
+			Annals whole = gson.fromJson(saved, Annals.class);
+			if (whole != null)
+			{
+				return new Loaded(whole.repair(), false);
+			}
+		}
+		catch (RuntimeException e)
+		{
+			// Read it piece by piece below.
+		}
+		Annals a = new Annals();
+		JsonReader in = new JsonReader(new StringReader(saved));
+		in.setLenient(true);
+		try
+		{
+			if (in.peek() == JsonToken.BEGIN_OBJECT)
+			{
+				in.beginObject();
+				while (in.hasNext())
+				{
+					String name = in.nextName();
+					if (("entries".equals(name) || "years".equals(name) || "weeks".equals(name)) && in.peek() == JsonToken.BEGIN_ARRAY)
+					{
+						if ("weeks".equals(name))
+						{
+							a.weeks = new ArrayList<>();
+						}
+						in.beginArray();
+						while (in.hasNext())
+						{
+							JsonElement item = gson.fromJson(in, JsonElement.class);
+							if ("entries".equals(name))
+							{
+								add(a.entries, piece(gson, item, Entry.class));
+							}
+							else if ("years".equals(name))
+							{
+								add(a.years, piece(gson, item, Year.class));
+							}
+							else
+							{
+								add(a.weeks, piece(gson, item, Week.class));
+							}
+						}
+						in.endArray();
+						continue;
+					}
+					a.field(gson, name, gson.fromJson(in, JsonElement.class));
+				}
+			}
+		}
+		catch (IOException | RuntimeException e)
+		{
+			// A save cut short keeps everything before the cut.
+		}
+		return new Loaded(a.repair(), true);
+	}
+
+	private static <T> void add(List<T> list, T item)
+	{
+		if (item != null)
+		{
+			list.add(item);
+		}
+	}
+
+	/** One saved entry, year or week, or null when it does not read. */
+	private static <T> T piece(Gson gson, JsonElement item, Class<T> type)
+	{
+		try
+		{
+			return item == null || !item.isJsonObject() ? null : gson.fromJson(item, type);
+		}
+		catch (RuntimeException e)
+		{
+			return null;
+		}
+	}
+
+	/** Sets one of the annals' own figures from a damaged save, keeping each entry of a map that reads. */
+	private void field(Gson gson, String name, JsonElement value)
+	{
+		try
+		{
+			switch (name)
+			{
+				case "begunAt":
+					begunAt = value.getAsLong();
+					break;
+				case "toldWeek":
+					toldWeek = value.getAsLong();
+					break;
+				case "player":
+					player = value.isJsonPrimitive() ? value.getAsString() : null;
+					break;
+				case "combat":
+					combat = value.getAsInt();
+					break;
+				case "baseline":
+					baseline = gson.fromJson(value, Baseline.class);
+					break;
+				case "pace":
+					pace = gson.fromJson(value, Pace.class);
+					break;
+				case "kc":
+				case "levels":
+				case "xp":
+					if (!value.isJsonObject())
+					{
+						break;
+					}
+					for (Map.Entry<String, JsonElement> e : value.getAsJsonObject().entrySet())
+					{
+						try
+						{
+							if ("xp".equals(name))
+							{
+								xp.put(e.getKey(), e.getValue().getAsLong());
+							}
+							else
+							{
+								("kc".equals(name) ? kc : levels).put(e.getKey(), e.getValue().getAsInt());
+							}
+						}
+						catch (RuntimeException ignored)
+						{
+							// That one figure is lost; the rest are not.
+						}
+					}
+					break;
+				default:
+					// A field a later version keeps, unknown here.
+			}
+		}
+		catch (RuntimeException e)
+		{
+			// This field is lost; the rest are not.
+		}
+	}
+
 	/** Makes sure every field exists after Gson has read an older or damaged save. */
 	public Annals repair()
 	{
@@ -110,7 +284,8 @@ public class Annals
 		{
 			entries = new ArrayList<>();
 		}
-		entries.removeIf(e -> e == null);
+		// An entry of a kind this version does not know, or with nothing to call it, cannot be told.
+		entries.removeIf(e -> e == null || e.getKind() == null || e.getTitle() == null);
 		for (Entry e : entries)
 		{
 			e.compact();
@@ -119,7 +294,7 @@ public class Annals
 		{
 			years = new ArrayList<>();
 		}
-		years.removeIf(y -> y == null);
+		years.removeIf(y -> y == null || y.year < Year.MIN_YEAR || y.year > Year.MAX_YEAR);
 		for (Year y : years)
 		{
 			y.repair();
@@ -153,6 +328,12 @@ public class Annals
 			w.repair();
 		}
 		weeks.sort((a, b) -> Long.compare(a.w, b.w));
+		while (weeks.size() > MAX_WEEKS)
+		{
+			weeks.remove(0);
+		}
+		// A save holding more than the annals keep, damaged or edited by hand, is brought within it.
+		compact();
 		return this;
 	}
 
@@ -754,27 +935,40 @@ public class Annals
 	/** Drops the least telling entry, the oldest of them on a tie, until the annals fit. */
 	private void compact()
 	{
-		while (entries.size() > MAX_ENTRIES)
+		int over = entries.size() - MAX_ENTRIES;
+		if (over <= 0)
 		{
-			int worst = -1;
-			for (int i = 0; i < entries.size() - 1; i++)
-			{
-				Entry e = entries.get(i);
-				if (e.getKind() == Entry.Kind.BEGIN)
-				{
-					continue;
-				}
-				if (worst < 0 || e.rank() < entries.get(worst).rank())
-				{
-					worst = i;
-				}
-			}
-			if (worst < 0)
-			{
-				return;
-			}
-			entries.remove(worst);
+			return;
 		}
+		// The least telling go first, the oldest of them first; never the beginning or the newest.
+		// Ranks do not change as entries go, so all that must go are found in one pass.
+		List<Integer> order = new ArrayList<>();
+		for (int i = 0; i < entries.size() - 1; i++)
+		{
+			if (entries.get(i).getKind() != Entry.Kind.BEGIN)
+			{
+				order.add(i);
+			}
+		}
+		order.sort((x, y) ->
+		{
+			int byRank = Double.compare(entries.get(x).rank(), entries.get(y).rank());
+			return byRank != 0 ? byRank : Integer.compare(x, y);
+		});
+		boolean[] drop = new boolean[entries.size()];
+		for (int k = 0; k < Math.min(over, order.size()); k++)
+		{
+			drop[order.get(k)] = true;
+		}
+		List<Entry> kept = new ArrayList<>(MAX_ENTRIES);
+		for (int i = 0; i < entries.size(); i++)
+		{
+			if (!drop[i])
+			{
+				kept.add(entries.get(i));
+			}
+		}
+		entries = kept;
 	}
 
 	/** The total experience mark crossed between two readings, or 0. */

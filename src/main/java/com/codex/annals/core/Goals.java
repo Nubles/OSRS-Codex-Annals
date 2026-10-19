@@ -3,7 +3,6 @@ package com.codex.annals.core;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonParseException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -213,8 +212,9 @@ public final class Goals
 					hours == null ? 0 : Math.max(0, hours), string(g, "next"), Collections.unmodifiableMap(skills), quests));
 			}
 		}
-		catch (JsonParseException | IllegalStateException e)
+		catch (RuntimeException e)
 		{
+			// Navigator's board is only read; one that does not read is no board at all.
 			out.clear();
 		}
 		return out;

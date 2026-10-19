@@ -49,6 +49,26 @@ public final class Wealth
 		}
 	}
 
+	/**
+	 * Reads Codex Ledger's save, or null when there is none or it does not read. It is only
+	 * read, so a damaged one costs nothing but the worth figures until the ledger saves again.
+	 */
+	public static Saved read(com.google.gson.Gson gson, String raw)
+	{
+		if (raw == null || raw.isEmpty())
+		{
+			return null;
+		}
+		try
+		{
+			return gson.fromJson(raw, Saved.class);
+		}
+		catch (RuntimeException e)
+		{
+			return null;
+		}
+	}
+
 	private final int year;
 	private final long start;
 	private final long end;

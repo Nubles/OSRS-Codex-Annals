@@ -16,7 +16,6 @@ import com.codex.annals.ui.Icons;
 import com.codex.annals.ui.ItemIcons;
 import com.codex.annals.ui.Sigil;
 import com.google.gson.Gson;
-import com.google.gson.JsonParseException;
 import com.google.inject.Provides;
 import java.awt.Toolkit;
 import java.awt.image.BufferedImage;
@@ -86,6 +85,8 @@ public class CodexAnnalsPlugin extends Plugin
 {
 	private static final Logger log = LoggerFactory.getLogger(CodexAnnalsPlugin.class);
 	private static final String ANNALS_KEY = "annals";
+	/** Where a damaged save is set aside, as it was, before what was read from it is saved over it. */
+	private static final String DAMAGED_KEY = "annalsDamaged";
 	/** A game tick, the time each logged-in tick stands for. */
 	private static final long TICK_MS = 600;
 	/** Ticks between panel refreshes when only the clock moved, about half a minute. */
@@ -482,14 +483,7 @@ public class CodexAnnalsPlugin extends Plugin
 		if (!raw.equals(ledgerRaw))
 		{
 			ledgerRaw = raw;
-			try
-			{
-				ledgerWealth = gson.fromJson(raw, Wealth.Saved.class);
-			}
-			catch (JsonParseException e)
-			{
-				ledgerWealth = null;
-			}
+			ledgerWealth = Wealth.read(gson, raw);
 		}
 		return ledgerWealth;
 	}
@@ -690,22 +684,15 @@ public class CodexAnnalsPlugin extends Plugin
 		{
 			return;
 		}
-		try
+		String saved = configManager.getRSProfileConfiguration(CodexAnnalsConfig.GROUP, ANNALS_KEY);
+		Annals.Loaded read = Annals.read(gson, saved);
+		if (read.damaged)
 		{
-			String saved = configManager.getRSProfileConfiguration(CodexAnnalsConfig.GROUP, ANNALS_KEY);
-			if (saved != null && !saved.isEmpty())
-			{
-				Annals read = gson.fromJson(saved, Annals.class);
-				if (read != null)
-				{
-					annals = read.repair();
-				}
-			}
+			// The save as it was is kept aside before anything is written over it.
+			log.warn("The saved annals were damaged; kept what still reads and set the save as it was aside");
+			configManager.setConfiguration(CodexAnnalsConfig.GROUP, profile, DAMAGED_KEY, saved);
 		}
-		catch (JsonParseException e)
-		{
-			log.warn("Could not read the saved annals, starting them afresh", e);
-		}
+		annals = read.annals;
 	}
 
 	/** @return whether anything was written */
