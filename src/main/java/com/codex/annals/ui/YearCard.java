@@ -84,14 +84,15 @@ public final class YearCard
 
 		// The mark engraved faintly in the emptiest corner, its lines stopping short of anything
 		// written, so it never runs behind a word.
-		java.awt.Point at = ink == null ? new java.awt.Point(w - 196, h - 206) : Watermark.place(ink, w, h);
-		if (ink != null)
+		if (ink == null)
 		{
-			java.awt.geom.Area free = Watermark.clear(ink, w, h);
-			free.intersect(new java.awt.geom.Area(page));
-			g.setClip(free);
+			Sigil.engrave(g, w - 196, h - 206, Watermark.SIZE, Theme.alpha(Theme.GOLD, 16));
 		}
-		Sigil.engrave(g, at.x, at.y, Watermark.SIZE, Theme.alpha(Theme.GOLD, 16));
+		else
+		{
+			java.awt.Point at = Watermark.place(ink, w, h);
+			g.drawImage(Watermark.engraved(ink, w, h, at, Theme.alpha(Theme.GOLD, 16), SCALE), at.x, at.y, Watermark.SIZE, Watermark.SIZE, null);
+		}
 		g.setClip(null);
 
 		g.setStroke(new BasicStroke(1f));

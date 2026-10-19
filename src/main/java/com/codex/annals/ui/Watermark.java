@@ -1,8 +1,8 @@
 package com.codex.annals.ui;
 
+import java.awt.Color;
+import java.awt.Graphics2D;
 import java.awt.Point;
-import java.awt.Rectangle;
-import java.awt.geom.Area;
 import java.awt.image.BufferedImage;
 
 /**
@@ -47,23 +47,78 @@ final class Watermark
 		return best;
 	}
 
-	/** The page less every cell holding ink and the cells around it: where the mark may draw. */
-	static Area clear(BufferedImage ink, int width, int height)
+	/**
+	 * Whether a point of the page is near ink: in a cell holding any, or a cell beside one. The
+	 * mark draws nowhere that is.
+	 */
+	static boolean[][] busy(BufferedImage ink, int width, int height)
 	{
-		Area free = new Area(new Rectangle(0, 0, width, height));
 		int cols = (width + CELL - 1) / CELL;
-		int rows = (Math.min(height, ink.getHeight()) + CELL - 1) / CELL;
+		int rows = (height + CELL - 1) / CELL;
+		boolean[][] inked = new boolean[rows][cols];
 		for (int r = 0; r < rows; r++)
 		{
 			for (int c = 0; c < cols; c++)
 			{
-				if (inkIn(ink, c * CELL, r * CELL, CELL, CELL, height) > 0)
+				inked[r][c] = inkIn(ink, c * CELL, r * CELL, CELL, CELL, height) > 0;
+			}
+		}
+		boolean[][] near = new boolean[rows][cols];
+		for (int r = 0; r < rows; r++)
+		{
+			for (int c = 0; c < cols; c++)
+			{
+				for (int dr = -1; dr <= 1 && !near[r][c]; dr++)
 				{
-					free.subtract(new Area(new Rectangle((c - 1) * CELL, (r - 1) * CELL, CELL * 3, CELL * 3)));
+					for (int dc = -1; dc <= 1; dc++)
+					{
+						int rr = r + dr;
+						int cc = c + dc;
+						if (rr >= 0 && rr < rows && cc >= 0 && cc < cols && inked[rr][cc])
+						{
+							near[r][c] = true;
+							break;
+						}
+					}
 				}
 			}
 		}
-		return free;
+		return near;
+	}
+
+	/** Whether a point of the page, in card units, is near ink. */
+	static boolean near(boolean[][] busy, double x, double y)
+	{
+		int r = (int) Math.floor(y / CELL);
+		int c = (int) Math.floor(x / CELL);
+		return r >= 0 && c >= 0 && r < busy.length && c < busy[r].length && busy[r][c];
+	}
+
+	/**
+	 * The mark engraved at a place, drawn at the card's scale, with every line near ink taken out,
+	 * ready to lay on the page at {@code at}, {@link #SIZE} card units square.
+	 */
+	static BufferedImage engraved(BufferedImage ink, int width, int height, Point at, Color color, int scale)
+	{
+		int px = SIZE * scale;
+		BufferedImage mark = new BufferedImage(px, px, BufferedImage.TYPE_INT_ARGB);
+		Graphics2D g = mark.createGraphics();
+		Theme.smooth(g);
+		g.scale(scale, scale);
+		Sigil.engrave(g, 0, 0, SIZE, color);
+		g.dispose();
+		boolean[][] busy = busy(ink, width, height);
+		for (int y = 0; y < px; y++)
+		{
+			for (int x = 0; x < px; x++)
+			{
+				if (near(busy, at.x + x / (double) scale, at.y + y / (double) scale))
+				{
+					mark.setRGB(x, y, 0);
+				}
+			}
+		}
+		return mark;
 	}
 
 	/** Pixels with any ink in a box of the content image. */
