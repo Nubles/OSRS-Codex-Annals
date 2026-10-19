@@ -302,8 +302,8 @@ public class CodexAnnalsPlugin extends Plugin
 	{
 		if (Goals.GROUP.equals(event.getGroup()) && event.getKey() != null && event.getKey().endsWith(Goals.KEY))
 		{
-			// Codex Navigator pinned, finished or moved a goal: the Ahead tab dates it.
-			clientThread.invokeLater(this::publish);
+			// Codex Navigator pinned, finished or moved a goal: the Ahead tab dates it at the next refresh.
+			dirty = true;
 			return;
 		}
 		// The annals themselves are saved in this group too; only the card's name setting concerns the panel.
