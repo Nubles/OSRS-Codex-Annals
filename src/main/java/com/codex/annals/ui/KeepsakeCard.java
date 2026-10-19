@@ -46,7 +46,7 @@ public final class KeepsakeCard
 		Graphics2D g = image.createGraphics();
 		g.scale(YearCard.SCALE, YearCard.SCALE);
 		Theme.smooth(g);
-		YearCard.frame(g, height);
+		YearCard.frame(g, height, scratch);
 		content(g, k, player, begunAt, icon, items, skills, onLoaded);
 		g.dispose();
 		return image;

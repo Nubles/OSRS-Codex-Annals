@@ -22,7 +22,7 @@ public class Crest extends JPanel
 	private final JLabel subtitle = Ui.label("Log in to open the annals", Theme.small(), Theme.TEXT_MUTED);
 	private final Ledger entries = new Ledger("Entries");
 	private final Ledger days = new Ledger("Days this year");
-	private final Ledger hours = new Ledger("Hours this year");
+	private final Ledger hours = new Ledger("Played this year");
 
 	public Crest()
 	{
@@ -71,7 +71,7 @@ public class Crest extends JPanel
 		subtitle.setText("Kept since " + Format.since(begunAt));
 		entries.set(Format.number(entryCount));
 		days.set(Format.number(daysThisYear));
-		hours.set(Format.number(playedThisYear / 3_600_000));
+		hours.set(Format.played(playedThisYear));
 	}
 
 	@Override

@@ -275,20 +275,6 @@ public final class WeekNote
 
 	static String amount(long n)
 	{
-		if (n >= 1_000_000)
-		{
-			return trim(n / 1_000_000.0) + "M";
-		}
-		if (n >= 1_000)
-		{
-			return trim(n / 1_000.0) + "k";
-		}
-		return String.valueOf(n);
-	}
-
-	private static String trim(double v)
-	{
-		String text = String.format(Locale.ENGLISH, "%.1f", v);
-		return text.endsWith(".0") ? text.substring(0, text.length() - 2) : text;
+		return Amount.of(n);
 	}
 }

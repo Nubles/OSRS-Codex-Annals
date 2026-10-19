@@ -27,27 +27,10 @@ public final class Format
 	{
 	}
 
-	/**
-	 * "8,240", "41.2k", "412k", "1.24M", "41.0M", "412M", "1.50B": three figures at every size,
-	 * trailing nought kept, so amounts side by side on one card are told to the same precision.
-	 */
+	/** "8,240", "41k", "412k", "1.2M", "41.0M", "412.4M", "1.50B": the suite's rule, as every Codex plugin writes amounts. */
 	public static String amount(long n)
 	{
-		if (n < 10_000)
-		{
-			return String.format(Locale.ENGLISH, "%,d", n);
-		}
-		// Rounded first, so 999,600 reads "1.00M" rather than "1000k".
-		long r = new BigDecimal(n).round(THREE).longValue();
-		if (r < 1_000_000)
-		{
-			return fixed(r / 1_000.0, r < 100_000 ? 1 : 0) + "k";
-		}
-		if (r < 1_000_000_000)
-		{
-			return fixed(r / 1_000_000.0, r < 10_000_000 ? 2 : r < 100_000_000 ? 1 : 0) + "M";
-		}
-		return fixed(r / 1_000_000_000.0, r < 10_000_000_000L ? 2 : r < 100_000_000_000L ? 1 : 0) + "B";
+		return com.codex.annals.core.Amount.of(n);
 	}
 
 	/** Gained experience with its sign: "+412k". */
@@ -56,13 +39,13 @@ public final class Format
 		return "+" + amount(Math.max(0, xp));
 	}
 
-	/** A change in coins with its sign: "+312M", "-4.1M", "0". */
+	/** A change in coins with its sign: "+312.0M", "-4.1M", "0". */
 	public static String signedCoins(long gp)
 	{
 		return gp > 0 ? "+" + amount(gp) : gp < 0 ? "-" + amount(-gp) : "0";
 	}
 
-	/** A change in coins with its sign in three figures, for tight spaces: "+248M", "-4.10M". */
+	/** A change in coins with its sign, for tight spaces: "+248.4M", "-4.1M". */
 	public static String signedCompact(long gp)
 	{
 		return signedCoins(gp);
@@ -97,6 +80,16 @@ public final class Format
 			return minutes + "m";
 		}
 		return minutes / 60 + "h " + minutes % 60 + "m";
+	}
+
+	/**
+	 * Time played, short, for a ledger line: "5m" under an hour, then whole hours, "101h", so a
+	 * first day reads 5m beside "5 minutes played" rather than 0.
+	 */
+	public static String played(long ms)
+	{
+		long minutes = Math.max(0, ms) / 60_000;
+		return minutes < 60 ? minutes + "m" : String.format(Locale.ENGLISH, "%,dh", minutes / 60);
 	}
 
 	/** "1:42" for a session clock. */

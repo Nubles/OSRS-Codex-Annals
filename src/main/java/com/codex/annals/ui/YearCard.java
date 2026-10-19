@@ -46,7 +46,7 @@ public final class YearCard
 		Graphics2D g = image.createGraphics();
 		g.scale(SCALE, SCALE);
 		Theme.smooth(g);
-		frame(g, height);
+		frame(g, height, scratch);
 		content(g, r, wealth, showName, items, skills, onLoaded);
 		g.dispose();
 		return image;
@@ -54,6 +54,16 @@ public final class YearCard
 
 	/** The gilt page both cards are drawn on. */
 	static void frame(Graphics2D g, int h)
+	{
+		frame(g, h, null);
+	}
+
+	/**
+	 * The gilt page both cards are drawn on.
+	 *
+	 * @param ink the card's content drawn once on its own, so the engraved mark keeps clear of it; or null
+	 */
+	static void frame(Graphics2D g, int h, BufferedImage ink)
 	{
 		int w = WIDTH;
 		RoundRectangle2D page = new RoundRectangle2D.Float(0, 0, w, h, 18, 18);
@@ -72,8 +82,16 @@ public final class YearCard
 			g.fillRect(grain.nextInt(w), grain.nextInt(h), 1, 1);
 		}
 
-		// The mark engraved faintly in the corner: lines only, so it never muddies what sits over it.
-		Sigil.engrave(g, w - 196, h - 206, 180, Theme.alpha(Theme.GOLD, 16));
+		// The mark engraved faintly in the emptiest corner, its lines stopping short of anything
+		// written, so it never runs behind a word.
+		java.awt.Point at = ink == null ? new java.awt.Point(w - 196, h - 206) : Watermark.place(ink, w, h);
+		if (ink != null)
+		{
+			java.awt.geom.Area free = Watermark.clear(ink, w, h);
+			free.intersect(new java.awt.geom.Area(page));
+			g.setClip(free);
+		}
+		Sigil.engrave(g, at.x, at.y, Watermark.SIZE, Theme.alpha(Theme.GOLD, 16));
 		g.setClip(null);
 
 		g.setStroke(new BasicStroke(1f));
