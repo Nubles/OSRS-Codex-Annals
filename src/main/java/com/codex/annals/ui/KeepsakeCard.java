@@ -52,6 +52,16 @@ public final class KeepsakeCard
 		return image;
 	}
 
+	/** The line under the name, or null when it would only say again what the line above it says ("Quest complete" under "A quest complete"). */
+	static String subline(String kind, String detail)
+	{
+		if (detail == null || detail.isEmpty())
+		{
+			return null;
+		}
+		return kind != null && kind.toLowerCase(Locale.ENGLISH).endsWith(detail.toLowerCase(Locale.ENGLISH)) ? null : detail;
+	}
+
 	private static int content(Graphics2D g, Keepsake k, String player, long begunAt, BufferedImage icon, ItemIcons items, Icons skills,
 		Runnable onLoaded)
 	{
@@ -104,8 +114,8 @@ public final class KeepsakeCard
 		g.drawString(title, cx - tw / 2, base);
 		y = base + 6;
 
-		String detail = EntryRow.detail(e);
-		if (detail != null && !detail.isEmpty())
+		String detail = subline(k.getKind(), EntryRow.detail(e));
+		if (detail != null)
 		{
 			g.setFont(Theme.body());
 			FontMetrics body = g.getFontMetrics();

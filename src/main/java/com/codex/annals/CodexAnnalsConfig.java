@@ -88,8 +88,8 @@ public interface CodexAnnalsConfig extends Config
 
 	@ConfigItem(
 		keyName = "nameOnCard",
-		name = "Name on card",
-		description = "Write your character's name on the Year in Gielinor card",
+		name = "Name on cards",
+		description = "Write your character's name on the Year in Gielinor card and on keepsake cards; turn off to share them without it",
 		position = 1,
 		section = display
 	)
