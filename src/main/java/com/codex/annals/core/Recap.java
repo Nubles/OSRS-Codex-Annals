@@ -113,6 +113,8 @@ public final class Recap
 	private final String headline;
 	private final long begunAt;
 	private final int firstMonth;
+	/** Whether a later year has been played, so this one is over and cannot be only beginning. */
+	private final boolean over;
 	/** Days played, as epoch days, oldest first. */
 	private final List<Long> days;
 
@@ -123,6 +125,8 @@ public final class Recap
 		begunAt = annals.getBegunAt();
 		LocalDate begun = Instant.ofEpochMilli(begunAt).atZone(zone).toLocalDate();
 		firstMonth = begunAt > 0 && begun.getYear() == year ? begun.getMonthValue() - 1 : 0;
+		List<Year> all = annals.getYears();
+		over = !all.isEmpty() && all.get(all.size() - 1).year > year;
 		playedMs = y.playedMs;
 		daysPlayed = y.days.size();
 		days = java.util.Collections.unmodifiableList(new java.util.ArrayList<>(y.days));
@@ -278,7 +282,7 @@ public final class Recap
 		{
 			return "A year of " + skills.get(0).skill;
 		}
-		if (daysPlayed <= FIRST_DAYS)
+		if (daysPlayed <= FIRST_DAYS && !over)
 		{
 			// Too soon to call a year quiet: the annals, or this year of them, have only begun.
 			return firstMonth > 0 || Instant.ofEpochMilli(begunAt).atZone(zone).getYear() == year ? "The annals begin" : "The year begins";

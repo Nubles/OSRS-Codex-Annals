@@ -45,4 +45,20 @@ public class RecapTest
 		// One month played is not the busiest of anything.
 		assertEquals(-1, r.busiestMonth());
 	}
+
+	@Test
+	public void aShortYearSinceOverIsQuietNotBeginning()
+	{
+		long begun = AnnalsTest.at(2025, 3, 12, 10);
+		Annals annals = AnnalsTest.begun(begun, 80, 2_000_000L);
+		for (int d = 0; d < 20; d++)
+		{
+			annals.tick(begun + d * 86_400_000L, 600, AnnalsTest.UTC);
+		}
+		annals.tick(AnnalsTest.at(2026, 5, 2, 10), 600, AnnalsTest.UTC);
+		annals.tick(AnnalsTest.at(2027, 1, 3, 10), 600, AnnalsTest.UTC);
+		// 2026 had a single day, but it is long over: not a year that is beginning.
+		assertEquals("A quiet year", Recap.of(annals, 2026, AnnalsTest.UTC).getHeadline());
+		assertEquals("The year begins", Recap.of(annals, 2027, AnnalsTest.UTC).getHeadline());
+	}
 }

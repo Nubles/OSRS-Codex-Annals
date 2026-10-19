@@ -20,6 +20,20 @@ public class PicturesTest
 	}
 
 	@Test
+	public void picturesAPetNamedByItsFollower()
+	{
+		// With no collection log line (a duplicate, or the game's notice turned off) the pet is
+		// named after the follower, whose name is not always the item's.
+		assertEquals(12650, Pets.item("General Graardor Jr."));
+		assertEquals(11995, Pets.item("Chaos Elemental Jr."));
+		assertEquals(12921, Pets.item("Snakeling"));
+		assertEquals(12655, Pets.item("Kraken"));
+		assertEquals(12703, Pets.item("Penance Pet"));
+		assertEquals(22318, Pets.item("Corporeal Critter"));
+		assertEquals(12816, Pets.item("Dark core"));
+	}
+
+	@Test
 	public void tellsAnOld99ByItsPlace()
 	{
 		assertEquals("Your 7th 99", EntryRow.detail(new Entry(Entry.Kind.MAX, 1, "99 Slayer", "99 number 7")));

@@ -7,7 +7,8 @@ import java.util.Map;
 /**
  * Every pet's picture, by the name the game gives it. Pets cannot be traded, so the price search
  * the annals use for a log slot's picture never finds one; this list, taken from the game's item
- * names, does. A pet the list does not know keeps the kind's own mark.
+ * names and the names of the followers that differ from them, does. A pet the list does not know
+ * keeps the kind's own mark.
  */
 public final class Pets
 {
@@ -124,6 +125,23 @@ public final class Pets
 		put("Maggot marquess", 33642);
 		put("Mr McGroot", 34040);
 		put("Aggy", 34042);
+
+		// The followers whose name is not the item's: a pet named after its follower, with no
+		// collection log line to name it, is still pictured.
+		put("Chaos Elemental Jr.", 11995);
+		put("Dagannoth Supreme Jr.", 12643);
+		put("Dagannoth Prime Jr.", 12644);
+		put("Dagannoth Rex Jr.", 12645);
+		put("Smoke Devil", 12648);
+		put("Kree'arra Jr.", 12649);
+		put("General Graardor Jr.", 12650);
+		put("Zilyana Jr.", 12651);
+		put("K'ril Tsutsaroth Jr.", 12652);
+		put("Kraken", 12655);
+		put("Penance Pet", 12703);
+		put("Dark core", 12816);
+		put("Snakeling", 12921);
+		put("Corporeal Critter", 22318);
 	}
 
 	private Pets()
