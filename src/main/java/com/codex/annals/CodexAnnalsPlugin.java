@@ -215,6 +215,7 @@ public class CodexAnnalsPlugin extends Plugin
 			}
 		});
 		panel.setShowName(config.nameOnCard());
+		panel.setShowWorth(config.worthOnCard());
 		panel.onStrike(this::strike);
 		// Opening the panel asks for the annals as they are now; while it is closed no copy is made.
 		panel.onOpen(() -> clientThread.invokeLater(this::publish));
@@ -315,8 +316,9 @@ public class CodexAnnalsPlugin extends Plugin
 			dirty = true;
 			return;
 		}
-		// The annals themselves are saved in this group too; only the card's name setting concerns the panel.
-		if (!CodexAnnalsConfig.GROUP.equals(event.getGroup()) || !"nameOnCard".equals(event.getKey()))
+		// The annals themselves are saved in this group too; only the cards' name and worth settings concern the panel.
+		if (!CodexAnnalsConfig.GROUP.equals(event.getGroup())
+			|| !("nameOnCard".equals(event.getKey()) || "worthOnCard".equals(event.getKey())))
 		{
 			return;
 		}
@@ -324,7 +326,12 @@ public class CodexAnnalsPlugin extends Plugin
 		if (target != null)
 		{
 			boolean showName = config.nameOnCard();
-			SwingUtilities.invokeLater(() -> target.setShowName(showName));
+			boolean showWorth = config.worthOnCard();
+			SwingUtilities.invokeLater(() ->
+			{
+				target.setShowName(showName);
+				target.setShowWorth(showWorth);
+			});
 		}
 	}
 

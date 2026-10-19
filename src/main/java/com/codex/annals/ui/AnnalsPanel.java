@@ -73,6 +73,8 @@ public class AnnalsPanel extends PluginPanel
 	private boolean stale;
 	private int limit = PAGE;
 	private boolean showName = true;
+	/** Whether shared cards print the account's worth from Codex Ledger; the panel shows it either way. */
+	private boolean showWorth;
 	private int tab;
 	private String cardNote;
 	private BufferedImage cardImage;
@@ -283,6 +285,21 @@ public class AnnalsPanel extends PluginPanel
 		}
 	}
 
+	public void setShowWorth(boolean showWorth)
+	{
+		this.showWorth = showWorth;
+		if (tab == CARD)
+		{
+			rebuildCard();
+		}
+	}
+
+	/** The card on the Card tab as last drawn, or null. */
+	BufferedImage card()
+	{
+		return cardImage;
+	}
+
 	/** A line under the card's buttons, such as where it was saved. */
 	public void cardNote(String note)
 	{
@@ -475,7 +492,7 @@ public class AnnalsPanel extends PluginPanel
 	private void rebuildCard()
 	{
 		StackPanel stack = new StackPanel(8, 8);
-		Keepsake kept = keepsake == null ? null : Keepsake.of(annals, Keepsake.find(annals, keepsake), wealth, zone);
+		Keepsake kept = keepsake == null ? null : Keepsake.of(annals, Keepsake.find(annals, keepsake), showWorth ? wealth : null, zone);
 		if (kept != null)
 		{
 			keepsakeCard(stack, kept);
@@ -496,7 +513,7 @@ public class AnnalsPanel extends PluginPanel
 			return;
 		}
 		int shownYear = r.getYear();
-		cardImage = YearCard.render(r, wealthOf(r), showName, items, icons, this::refreshLater);
+		cardImage = YearCard.render(r, showWorth ? wealthOf(r) : null, showName, items, icons, this::refreshLater);
 		JPanel buttons = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 0));
 		buttons.setOpaque(false);
 		buttons.add(new CodexButton("Save card", true, () -> actions.save(cardImage, "Year in Gielinor " + shownYear)));

@@ -52,8 +52,8 @@ public interface CodexAnnalsConfig extends Config
 
 	@ConfigItem(
 		keyName = "chatLine",
-		name = "Announce milestones",
-		description = "Put a line in the chat box when a 99, a pet, a first kill or another milestone is written down",
+		name = "Milestones in chat",
+		description = "Add a line to the chat box when a 99, a pet, a first kill or another milestone is written down",
 		position = 0,
 		section = display
 	)
@@ -65,8 +65,8 @@ public interface CodexAnnalsConfig extends Config
 	@ConfigItem(
 		keyName = "memories",
 		name = "On this day at login",
-		description = "When you log in on the anniversary of something in your annals, such as a 99 a year ago, put a line in the chat box",
-		position = 2,
+		description = "When you log in on the anniversary of something in your annals, such as a 99 a year ago, add a line to the chat box",
+		position = 1,
 		section = display
 	)
 	default boolean memories()
@@ -77,8 +77,8 @@ public interface CodexAnnalsConfig extends Config
 	@ConfigItem(
 		keyName = "weekly",
 		name = "Last week at login",
-		description = "At your first login of a new week, put a line in the chat box with what the week before held: time played, experience, kills and log slots",
-		position = 3,
+		description = "At your first login of a new week, add a line to the chat box with what the week before held: time played, experience, kills and log slots",
+		position = 2,
 		section = display
 	)
 	default boolean weekly()
@@ -90,11 +90,23 @@ public interface CodexAnnalsConfig extends Config
 		keyName = "nameOnCard",
 		name = "Name on cards",
 		description = "Write your character's name on the Year in Gielinor card and on keepsake cards; turn off to share them without it",
-		position = 1,
+		position = 3,
 		section = display
 	)
 	default boolean nameOnCard()
 	{
 		return true;
+	}
+
+	@ConfigItem(
+		keyName = "worthOnCard",
+		name = "Worth on cards",
+		description = "Print your account's worth from Codex Ledger on the Year in Gielinor card and on keepsake cards; the panel shows it either way",
+		position = 4,
+		section = display
+	)
+	default boolean worthOnCard()
+	{
+		return false;
 	}
 }
