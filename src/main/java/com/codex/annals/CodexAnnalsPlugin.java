@@ -1,5 +1,6 @@
 package com.codex.annals;
 
+import com.codex.annals.notes.FieldNotes;
 import com.codex.annals.core.Annals;
 import com.codex.annals.core.Baseline;
 import com.codex.annals.core.ChatParser;
@@ -130,6 +131,9 @@ public class CodexAnnalsPlugin extends Plugin
 	@Inject
 	private CodexAnnalsConfig config;
 
+	/** The optional local record of what the plugin read and decided. */
+	private FieldNotes notes;
+
 	private AnnalsPanel panel;
 	private NavigationButton navButton;
 
@@ -181,6 +185,11 @@ public class CodexAnnalsPlugin extends Plugin
 	@Override
 	protected void startUp()
 	{
+		notes = new FieldNotes(this::getPluginDirectory, gson);
+		if (config.fieldNotes())
+		{
+			notes.open();
+		}
 		Arrivals arrivals = new Arrivals();
 		ItemIcons items = (itemId, onLoaded) ->
 		{
@@ -237,6 +246,11 @@ public class CodexAnnalsPlugin extends Plugin
 	@Override
 	protected void shutDown()
 	{
+		if (notes != null)
+		{
+			notes.shutdown();
+			notes = null;
+		}
 		clientToolbar.removeNavigation(navButton);
 		panel.dispose();
 		clientThread.invokeLater(() ->
@@ -310,6 +324,18 @@ public class CodexAnnalsPlugin extends Plugin
 	@Subscribe
 	public void onConfigChanged(ConfigChanged event)
 	{
+		if (CodexAnnalsConfig.GROUP.equals(event.getGroup()) && "fieldNotes".equals(event.getKey()) && notes != null)
+		{
+			if (config.fieldNotes())
+			{
+				notes.open();
+			}
+			else
+			{
+				notes.close();
+			}
+			return;
+		}
 		if (Goals.GROUP.equals(event.getGroup()) && event.getKey() != null && event.getKey().endsWith(Goals.KEY))
 		{
 			// Codex Navigator pinned, finished or moved a goal: the Ahead tab dates it at the next refresh.
@@ -578,6 +604,19 @@ public class CodexAnnalsPlugin extends Plugin
 	@Subscribe
 	public void onChatMessage(ChatMessage event)
 	{
+		if (notes != null && notes.isOpen())
+		{
+			net.runelite.api.ChatMessageType chatType = event.getType();
+			// Only the game's own lines: other players' chat is never written down.
+			if (chatType == net.runelite.api.ChatMessageType.GAMEMESSAGE || chatType == net.runelite.api.ChatMessageType.SPAM
+				|| chatType == net.runelite.api.ChatMessageType.MESBOX)
+			{
+				com.google.gson.JsonObject chatNote = new com.google.gson.JsonObject();
+				chatNote.addProperty("type", chatType.name());
+				chatNote.addProperty("text", event.getMessage());
+				notes.note("chat", chatNote);
+			}
+		}
 		if (!live || (event.getType() != ChatMessageType.GAMEMESSAGE && event.getType() != ChatMessageType.SPAM))
 		{
 			return;
@@ -597,6 +636,17 @@ public class CodexAnnalsPlugin extends Plugin
 		if (entry == null)
 		{
 			return;
+		}
+		if (notes.isOpen())
+		{
+			// What a game message was read as, so a misread line can be found.
+			com.google.gson.JsonObject n = new com.google.gson.JsonObject();
+			n.addProperty("kind", String.valueOf(entry.getKind()));
+			n.addProperty("title", entry.getTitle());
+			n.addProperty("detail", entry.getDetail());
+			n.addProperty("value", entry.getValue());
+			n.addProperty("from", message);
+			notes.note("entry", n);
 		}
 		if (entry.getKind() == Entry.Kind.PET && message.startsWith(ChatParser.PET_FOLLOWS))
 		{
