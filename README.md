@@ -31,6 +31,19 @@ It is part of the **Codex** suite of RuneLite plugins and shares their look: war
 - **Year in Gielinor card.** The year on one page, drawn at double scale so the pixel fonts stay crisp, with your name unless you turn *Name on cards* off, and the year's change in worth only when you turn *Worth on cards* on (and Codex Ledger kept the whole year). It grows all year; save it wherever you choose with RuneLite's file chooser, or copy it to the clipboard. Every earlier year stays one click away.
 - **Keepsakes.** Right-click any moment on the timeline, or among the year's highlights, and choose *Make a keepsake card*: that one moment on a gilt page of its own, its picture in a medallion and its name large, the day it came, and three figures from the road to it. For a 99, how many weeks the skill was trained and what the last week brought; for a kill count, the kills that week; for a pet, a quest or a drop, where it sits among the year's (a drop is ranked by value). With them, the day of the annals it came on, the days played by then, and, with *Worth on cards* on, the account's worth that day when Codex Ledger kept a reading within three days of it (otherwise the time played by that week). Whatever else that day held is told beneath. Save it or copy it, as the year card.
 
+### Gielinor Wrapped
+- **Your year as a story.** Up to seven cards to page through on the Card tab, each one figure of the year on a gilt page of its own: the year in numbers (hours, days, experience, levels); your skill of the year and the biggest climb one skill made in a single day; the rarest thing that dropped, with its drop rate as the Old School RuneScape Wiki gives it; your biggest day and your longest streak, with every day of the year drawn beneath; the kind of player the year made you; and the year month by month as a line of experience over the days you played. It closes on the year's tallies.
+- **What kind of player you were.** *The Skiller*, *The Warrior*, *The Slayer*, *The Boss Hunter*, *The Collector*, *The Adventurer* or *The Treasure Hunter*, worked out from where the year's experience went (the skills of the craft, Sailing among them, against combat and Slayer), kills for every hour played, log slots and pets, quests and diaries, and clues. Each kind has a line to pass; the one the year went furthest past wins, and the card says why ("87% of your experience went to skills of the craft").
+- **Only what is known.** A card only appears when the year has something to put on it, so a short year gets a short story. A drop rate is printed only for drops listed with the wiki's rate and where they came from (boss uniques such as Zulrah's and Vorkath's, and the pets with a single rate); any other drop is told by its value instead, never with a guessed rate.
+- **When it opens.** The year under way opens on 1 December; every year gone by can be opened at any time.
+- **Save or share.** *Save story* stacks every card into one tall picture and saves it in RuneLite's own screenshot folder, under your character's folder in *Wrapped*, through RuneLite's screenshot API (log in first: RuneLite files screenshots under your character). *Copy story* puts the same picture on the clipboard. *Name on cards* applies here too.
+
+<p align="center">
+  <img src="docs/screenshots/wrapped-drop.png" width="240" alt="Gielinor Wrapped: the rarest drop">
+  <img src="docs/screenshots/wrapped-archetype.png" width="240" alt="Gielinor Wrapped: the kind of player you were">
+  <img src="docs/screenshots/wrapped-months.png" width="240" alt="Gielinor Wrapped: month by month">
+</p>
+
 <p align="center">
   <img src="docs/screenshots/card.png" width="360" alt="A Year in Gielinor card">
   <img src="docs/screenshots/keepsake.png" width="360" alt="A keepsake card for one moment">
@@ -64,7 +77,7 @@ If a save is ever damaged (a figure of the wrong kind, a file cut short), Annals
 
 ## Rules posture
 
-Codex Annals only reads what the game already shows you: your stats, loot events and the game's own chat messages. It does not click, change menus or send anything over the network. The annals are saved per account in your RuneLite profile, and a card is only written when you press Save and pick where it goes.
+Codex Annals only reads what the game already shows you: your stats, loot events and the game's own chat messages. It does not click, change menus or send anything over the network. The annals are saved per account in your RuneLite profile, and a card is only written when you press Save and pick where it goes, and the Wrapped story only when you press Save story, into RuneLite's screenshot folder.
 
 ## Development
 

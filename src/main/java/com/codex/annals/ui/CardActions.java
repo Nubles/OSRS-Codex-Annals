@@ -9,4 +9,15 @@ public interface CardActions
 	void save(BufferedImage card, String name);
 
 	void copy(BufferedImage card);
+
+	/**
+	 * Saves a picture straight into RuneLite's screenshot folder, as Gielinor Wrapped does with its
+	 * story; by default it asks where, as {@link #save} does.
+	 *
+	 * @param name the file name, without its extension or the date RuneLite adds
+	 */
+	default void screenshot(BufferedImage image, String name)
+	{
+		save(image, name);
+	}
 }

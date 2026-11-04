@@ -9,6 +9,7 @@ import com.codex.annals.core.Today;
 import com.codex.annals.core.Goals;
 import com.codex.annals.core.Keepsake;
 import com.codex.annals.core.Wealth;
+import com.codex.annals.core.Wrapped;
 import com.codex.annals.core.Year;
 import java.awt.BorderLayout;
 import java.awt.CardLayout;
@@ -81,6 +82,12 @@ public class AnnalsPanel extends PluginPanel
 	/** The moment the Card tab shows as a keepsake instead of the year, or null. */
 	private Entry keepsake;
 	private boolean refreshPending;
+	/** Whether the Card tab shows the year's Gielinor Wrapped rather than its card, once it is open. */
+	private boolean wrapped;
+	/** The Wrapped card on show, from 0. */
+	private int wrappedPage;
+	/** The year the Wrapped page is turned to, so another year starts again from its first card. */
+	private int wrappedYear;
 	/** The day so far, kept across rebuilds so its figures move without the timeline being built again. */
 	private final TodayCard today = new TodayCard();
 	/** The day the pages were last built on; a page built yesterday says the wrong "today". */
@@ -513,6 +520,25 @@ public class AnnalsPanel extends PluginPanel
 			return;
 		}
 		int shownYear = r.getYear();
+		LocalDate todayDate = LocalDate.now(zone);
+		boolean open = Wrapped.isOpen(shownYear, todayDate);
+		if (open)
+		{
+			Segmented which = new Segmented(false, "Year card", "Gielinor Wrapped");
+			which.setSelected(wrapped ? 1 : 0, false);
+			which.onChange(i ->
+			{
+				wrapped = i == 1;
+				cardNote = null;
+				rebuildCard();
+			});
+			stack.add(which);
+			if (wrapped)
+			{
+				wrappedCard(stack, r.getYear());
+				return;
+			}
+		}
 		cardImage = YearCard.render(r, showWorth ? wealthOf(r) : null, showName, items, icons, this::refreshLater);
 		JPanel buttons = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 0));
 		buttons.setOpaque(false);
@@ -524,7 +550,75 @@ public class AnnalsPanel extends PluginPanel
 		stack.add(buttons);
 		String note = cardNote != null ? cardNote : "Save card asks where to put the picture. Copy puts it on the clipboard, ready to paste. Right-click a moment on the timeline to make a keepsake of it.";
 		stack.add(Ui.wrapped(note, Theme.small(), cardNote != null ? Theme.TEAL : Theme.TEXT_FAINT, Views.WIDTH - 10));
+		if (!open && shownYear == todayDate.getYear())
+		{
+			stack.add(Views.note("Gielinor Wrapped " + shownYear, "Your year as a story of cards, from your top skill to your rarest drop, opens on 1 December."
+				+ (years.size() > 1 ? " Every year gone by can be opened now: choose it above." : "")));
+		}
 		replace(card, stack);
+	}
+
+	/** The Card tab as the year's Gielinor Wrapped: one card at a time, paged, and the whole story to save or copy. */
+	private void wrappedCard(StackPanel stack, int year)
+	{
+		Wrapped story = Wrapped.of(annals, year, zone);
+		if (story == null)
+		{
+			replace(card, stack);
+			return;
+		}
+		if (wrappedYear != year)
+		{
+			wrappedYear = year;
+			wrappedPage = 0;
+		}
+		int count = story.getCards().size();
+		wrappedPage = Math.max(0, Math.min(wrappedPage, count - 1));
+		String player = showName ? (playerName != null ? playerName : annals.getPlayer()) : null;
+		cardImage = WrappedCard.render(story, wrappedPage, player, items, icons, zone, this::refreshLater);
+		stack.add(new SectionHeader("Gielinor Wrapped", year + ", " + (wrappedPage + 1) + " of " + count));
+		CardPreview preview = new CardPreview(cardImage);
+		preview.setToolTipText("One card of your year; the arrows turn the page");
+		stack.add(preview);
+
+		JPanel pager = new JPanel(new BorderLayout(6, 0));
+		pager.setOpaque(false);
+		CodexButton back = new CodexButton("Back", false, () -> turn(-1));
+		CodexButton next = new CodexButton(wrappedPage == count - 1 ? "From the top" : "Next card", wrappedPage < count - 1, () -> turn(1));
+		pager.add(back, BorderLayout.WEST);
+		pager.add(next, BorderLayout.EAST);
+		back.setVisible(wrappedPage > 0);
+		stack.add(pager);
+
+		JPanel buttons = new JPanel(new FlowLayout(FlowLayout.CENTER, 6, 0));
+		buttons.setOpaque(false);
+		String name = story.fileName();
+		String shown = player;
+		buttons.add(new CodexButton("Save story", true, () -> actions.screenshot(WrappedCard.renderAll(story, shown, items, icons, zone, () -> { }), name)));
+		buttons.add(new CodexButton("Copy story", false, () -> actions.copy(WrappedCard.renderAll(story, shown, items, icons, zone, () -> { }))));
+		stack.add(buttons);
+		String note = cardNote != null ? cardNote : "Save story puts every card, one under the other, in one tall picture in RuneLite's screenshot folder. Copy puts it on the clipboard.";
+		stack.add(Ui.wrapped(note, Theme.small(), cardNote != null ? Theme.TEAL : Theme.TEXT_FAINT, Views.WIDTH - 10));
+		replace(card, stack);
+	}
+
+	/** Turns the Wrapped page on or back, round to the first card after the last. */
+	private void turn(int by)
+	{
+		Wrapped story = annals == null ? null : Wrapped.of(annals, wrappedYear, zone);
+		int count = story == null ? 1 : story.getCards().size();
+		wrappedPage = ((wrappedPage + by) % count + count) % count;
+		cardNote = null;
+		rebuildCard();
+	}
+
+	/** Opens the Card tab on a year's Gielinor Wrapped, for previews and tests. */
+	public void showWrapped(int page)
+	{
+		wrapped = true;
+		showTab(CARD);
+		wrappedPage = page;
+		rebuildCard();
 	}
 
 	/** The Card tab as a keepsake: the picture, Save and Copy, and the way back to the year. */
