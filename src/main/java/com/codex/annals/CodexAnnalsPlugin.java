@@ -70,6 +70,7 @@ import net.runelite.client.ui.ClientToolbar;
 import net.runelite.client.ui.NavigationButton;
 import net.runelite.client.util.AsyncBufferedImage;
 import net.runelite.client.util.Filepath;
+import net.runelite.client.util.ImageCapture;
 import net.runelite.client.util.Text;
 import net.runelite.http.api.item.ItemPrice;
 import net.runelite.http.api.loottracker.LootRecordType;
@@ -126,6 +127,9 @@ public class CodexAnnalsPlugin extends Plugin
 
 	@Inject
 	private Gson gson;
+
+	@Inject
+	private ImageCapture imageCapture;
 
 	@Inject
 	private CodexAnnalsConfig config;
@@ -212,6 +216,12 @@ public class CodexAnnalsPlugin extends Plugin
 			public void copy(BufferedImage card)
 			{
 				copyCard(card);
+			}
+
+			@Override
+			public void screenshot(BufferedImage image, String name)
+			{
+				screenshotCard(image, name);
 			}
 		});
 		panel.setShowName(config.nameOnCard());
@@ -799,6 +809,39 @@ public class CodexAnnalsPlugin extends Plugin
 			{
 				SwingUtilities.invokeLater(() -> view.cardNote(shown));
 			}
+		});
+	}
+
+	/** The folder inside the player's screenshot folder that Gielinor Wrapped saves its story in. */
+	static final String WRAPPED_FOLDER = "Wrapped";
+
+	/**
+	 * Saves a picture in RuneLite's own screenshot folder, in the player's folder under
+	 * {@link #WRAPPED_FOLDER}, through RuneLite's screenshot API; runs on the Swing thread.
+	 */
+	private void screenshotCard(BufferedImage image, String name)
+	{
+		clientThread.invokeLater(() ->
+		{
+			// RuneLite files screenshots under the character's name, and takes none at the login screen.
+			boolean in = client.getGameState() == GameState.LOGGED_IN && client.getLocalPlayer() != null;
+			AnnalsPanel view = panel;
+			if (!in)
+			{
+				if (view != null)
+				{
+					SwingUtilities.invokeLater(() -> view.cardNote("Log in to save the story: RuneLite files screenshots under your character. Copy story works now."));
+				}
+				return;
+			}
+			executor.execute(() ->
+			{
+				imageCapture.saveScreenshot(image, name, WRAPPED_FOLDER, false, false);
+				if (view != null)
+				{
+					SwingUtilities.invokeLater(() -> view.cardNote("Saved in your RuneLite screenshot folder, under " + WRAPPED_FOLDER + "."));
+				}
+			});
 		});
 	}
 

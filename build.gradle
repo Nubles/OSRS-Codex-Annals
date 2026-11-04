@@ -47,3 +47,9 @@ tasks.register('run', JavaExec) {
     jvmArgs '-ea'
     args '--developer-mode', '--debug'
 }
+
+tasks.named('test') {
+    // The card tests paint full 2x pictures (the Wrapped story is one tall image); the default 512 MB
+    // test heap runs out on CI's Java 11 once the whole suite has run in the same worker.
+    maxHeapSize = '1g'
+}
