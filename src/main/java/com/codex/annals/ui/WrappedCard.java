@@ -104,11 +104,12 @@ public final class WrappedCard
 
 		YearCard.frame(g, HEIGHT, ink);
 		// Each card glows in its own colour behind its figure, so paging through them reads as turning a page.
-		g.setClip(new RoundRectangle2D.Float(0, 0, WIDTH, HEIGHT, 18, 18));
+		java.awt.Shape outside = g.getClip();
+		g.clip(new RoundRectangle2D.Float(0, 0, WIDTH, HEIGHT, 18, 18));
 		g.setPaint(new RadialGradientPaint(WIDTH / 2f, top + shift + 110, WIDTH * 0.62f, new float[]{0f, 1f},
 			new Color[]{Theme.alpha(accent, 46), Theme.alpha(accent, 0)}));
 		g.fillRect(0, 0, WIDTH, HEIGHT);
-		g.setClip(null);
+		g.setClip(outside);
 		header(g, w, index);
 		body(g, card, w, player, items, skills, zone, top + shift, onLoaded);
 		footer(g, w, index, player);

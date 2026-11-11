@@ -69,7 +69,9 @@ public final class YearCard
 		RoundRectangle2D page = new RoundRectangle2D.Float(0, 0, w, h, 18, 18);
 		g.setPaint(new GradientPaint(0, 0, Theme.mix(Theme.INK, Theme.CARD_TOP, 0.5), 0, h, Theme.INK_DEEP));
 		g.fill(page);
-		g.setClip(page);
+		// The caller's clip is put back afterwards, never cleared: a cleared clip draws past the page.
+		java.awt.Shape outside = g.getClip();
+		g.clip(page);
 		g.setPaint(new RadialGradientPaint(w / 2f, 70, w * 0.75f, new float[]{0f, 1f},
 			new Color[]{Theme.alpha(Theme.GOLD, 58), Theme.alpha(Theme.GOLD, 0)}));
 		g.fillRect(0, 0, w, h);
@@ -93,7 +95,7 @@ public final class YearCard
 			java.awt.Point at = Watermark.place(ink, w, h);
 			g.drawImage(Watermark.engraved(ink, w, h, at, Theme.alpha(Theme.GOLD, 16), SCALE), at.x, at.y, Watermark.SIZE, Watermark.SIZE, null);
 		}
-		g.setClip(null);
+		g.setClip(outside);
 
 		g.setStroke(new BasicStroke(1f));
 		g.setColor(Theme.alpha(Theme.GOLD, 190));
