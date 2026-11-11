@@ -19,7 +19,18 @@ public class Entry
 		TASK(40, Chapter.FEATS),
 		CLUE(28, Chapter.LOOT),
 		LEVEL(20, Chapter.SKILLS),
-		BEGIN(10, Chapter.ALL);
+		BEGIN(10, Chapter.ALL),
+		// The kinds below are told by other Codex plugins and woven in for the timeline; the annals never save them.
+		/** A death, as Codex Guardian (or another plugin) told it. */
+		DEATH(66, Chapter.ALL),
+		/** A close call survived. */
+		CLOSE_CALL(34, Chapter.ALL),
+		/** A personal best from a pilot or splits plugin. */
+		PB(56, Chapter.BOSSES),
+		/** A find another plugin told of that the annals did not keep. */
+		FIND(40, Chapter.LOOT),
+		/** Any other moment another plugin told. */
+		MOMENT(30, Chapter.ALL);
 
 		private final int weight;
 		private final Chapter chapter;
@@ -65,6 +76,18 @@ public class Entry
 	Integer from;
 	/** A pet that also filled a collection log slot, so the year counts it as one. */
 	Boolean slot;
+
+	// Never saved: what another Codex plugin's story adds to the line, for the timeline only.
+	/** The plugin that told this line, for a moment woven in from another plugin's story; null for the annals' own. */
+	transient String app;
+	/** The telling plugin's own reference for the moment, or null. */
+	transient String ref;
+	/** The chapter a woven moment is filed under, when it is not its kind's. */
+	transient Chapter chapter;
+	/** A second clause another plugin adds to one of the annals' own lines, or null. */
+	transient String clause;
+	/** The plugin that added the clause. */
+	transient String clauseApp;
 
 	Entry()
 	{
@@ -170,6 +193,53 @@ public class Entry
 
 	public boolean in(Chapter chapter)
 	{
-		return chapter == Chapter.ALL || getKind().getChapter() == chapter;
+		return chapter == Chapter.ALL || (this.chapter != null ? this.chapter : getKind().getChapter()) == chapter;
+	}
+
+	/** Whether this line was told by another Codex plugin rather than written by the annals. */
+	public boolean isMoment()
+	{
+		return app != null;
+	}
+
+	/** The Codex plugin that told this line, or null for the annals' own. */
+	public String getApp()
+	{
+		return app;
+	}
+
+	public String getRef()
+	{
+		return ref;
+	}
+
+	/** What another plugin adds to this line, such as "212 kc · luckier than 66%", or null. */
+	public String getClause()
+	{
+		return clause;
+	}
+
+	/** The plugin that added the clause, or null. */
+	public String getClauseApp()
+	{
+		return clauseApp;
+	}
+
+	/** A copy of the line, with what was woven into it. */
+	Entry copy()
+	{
+		Entry e = new Entry(kind, at, title, detail);
+		e.skill = skill;
+		e.itemId = itemId;
+		e.value = value;
+		e.level = level;
+		e.from = from;
+		e.slot = slot;
+		e.app = app;
+		e.ref = ref;
+		e.chapter = chapter;
+		e.clause = clause;
+		e.clauseApp = clauseApp;
+		return e;
 	}
 }

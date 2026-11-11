@@ -8,6 +8,9 @@ import com.codex.annals.core.Memories;
 import com.codex.annals.core.Week;
 import com.codex.annals.core.WeekNote;
 import com.codex.annals.core.Goals;
+import com.codex.annals.core.GuardianJournal;
+import com.codex.annals.core.OwnStory;
+import com.codex.annals.core.Story;
 import com.codex.annals.core.Wealth;
 import com.codex.annals.ui.AnnalsPanel;
 import com.codex.annals.ui.Arrivals;
@@ -160,6 +163,14 @@ public class CodexAnnalsPlugin extends Plugin
 	private Wealth.Saved ledgerWealth;
 	/** Whether the panel has had a copy of these annals; until it has, one is sent even while it is closed. */
 	private boolean sent;
+	/** Each Codex plugin's story as last read, and the moments read from it; read again only when it changes. */
+	private final Map<Story.App, String> storyRaw = new java.util.EnumMap<>(Story.App.class);
+	private final Map<Story.App, List<Story.Moment>> storyRead = new java.util.EnumMap<>(Story.App.class);
+	/** Codex Guardian's journal as last read, for its deaths when Guardian writes no story yet. */
+	private String journalRaw;
+	private List<Story.Moment> journalRead = java.util.Collections.emptyList();
+	/** The annals' own story as last saved, so it is written only when it changes. */
+	private String storyWritten;
 
 	/** An item seen in loot a moment ago, to give a collection log entry its picture. */
 	private static final class RecentItem
@@ -320,6 +331,13 @@ public class CodexAnnalsPlugin extends Plugin
 	@Subscribe
 	public void onConfigChanged(ConfigChanged event)
 	{
+		if (event.getKey() != null && !CodexAnnalsConfig.GROUP.equals(event.getGroup())
+			&& (event.getKey().endsWith(Story.KEY) || (GuardianJournal.GROUP.equals(event.getGroup()) && event.getKey().endsWith(GuardianJournal.KEY))))
+		{
+			// Another Codex plugin told a moment: the timeline weaves it in at the next refresh.
+			dirty = true;
+			return;
+		}
 		if (Goals.GROUP.equals(event.getGroup()) && event.getKey() != null && event.getKey().endsWith(Goals.KEY))
 		{
 			// Codex Navigator pinned, finished or moved a goal: the Ahead tab dates it at the next refresh.
@@ -503,6 +521,41 @@ public class CodexAnnalsPlugin extends Plugin
 			ledgerWealth = Wealth.read(gson, raw);
 		}
 		return ledgerWealth;
+	}
+
+	/**
+	 * Every moment the other Codex plugins told for this account, read only and each plugin's
+	 * only when it changed. Codex Guardian's journal stands in for its story until it writes one.
+	 */
+	private List<Story.Moment> story()
+	{
+		if (profile == null)
+		{
+			return java.util.Collections.emptyList();
+		}
+		List<Story.Moment> all = new ArrayList<>();
+		for (Story.App app : Story.App.values())
+		{
+			String raw = configManager.getConfiguration(app.getGroup(), profile, Story.KEY);
+			if (raw == null || !raw.equals(storyRaw.get(app)))
+			{
+				storyRaw.put(app, raw);
+				storyRead.put(app, Story.read(gson, app, raw));
+			}
+			all.addAll(storyRead.get(app));
+		}
+		if (storyRead.get(Story.App.GUARDIAN).isEmpty())
+		{
+			String raw = configManager.getConfiguration(GuardianJournal.GROUP, profile, GuardianJournal.KEY);
+			if (raw == null || !raw.equals(journalRaw))
+			{
+				journalRaw = raw;
+				journalRead = GuardianJournal.moments(gson, raw);
+			}
+			all.addAll(journalRead);
+		}
+		all.sort((a, b) -> Long.compare(a.getT(), b.getT()));
+		return all;
 	}
 
 	/** The goals pinned in Codex Navigator for this account, read only; empty without it. */
@@ -697,10 +750,16 @@ public class CodexAnnalsPlugin extends Plugin
 		rememberedOn = null;
 		petTicks = 0;
 		sent = false;
+		storyRaw.clear();
+		storyRead.clear();
+		journalRaw = null;
+		journalRead = java.util.Collections.emptyList();
+		storyWritten = null;
 		if (profile == null)
 		{
 			return;
 		}
+		storyWritten = configManager.getConfiguration(CodexAnnalsConfig.GROUP, profile, Story.KEY);
 		String saved = configManager.getRSProfileConfiguration(CodexAnnalsConfig.GROUP, ANNALS_KEY);
 		Annals.Loaded read = Annals.read(gson, saved);
 		if (read.damaged)
@@ -722,6 +781,13 @@ public class CodexAnnalsPlugin extends Plugin
 		unsaved = false;
 		entriesChanged = false;
 		configManager.setConfiguration(CodexAnnalsConfig.GROUP, profile, ANNALS_KEY, gson.toJson(annals));
+		// The annals' own milestones in the suite's shared story shape, for Codex Home and the rest.
+		String story = OwnStory.json(gson, annals);
+		if (!story.equals(storyWritten))
+		{
+			storyWritten = story;
+			configManager.setConfiguration(CodexAnnalsConfig.GROUP, profile, Story.KEY, story);
+		}
 		return true;
 	}
 
@@ -746,10 +812,12 @@ public class CodexAnnalsPlugin extends Plugin
 			ZoneId zone = ZoneId.systemDefault();
 			Wealth.Saved worth = wealth();
 			List<Goals.Goal> goals = goals();
+			List<Story.Moment> story = story();
 			SwingUtilities.invokeLater(() ->
 			{
 				target.setWealth(worth);
 				target.setGoals(goals);
+				target.setStory(story);
 				target.update(copy.isBegun() ? copy : null, zone, name);
 			});
 		}

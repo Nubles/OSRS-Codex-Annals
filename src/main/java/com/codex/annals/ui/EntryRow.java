@@ -25,6 +25,8 @@ import javax.swing.JPopupMenu;
 class EntryRow extends JComponent
 {
 	static final int HEIGHT = 34;
+	/** A line with a second clause from another Codex plugin takes one more line of text. */
+	static final int TALL = 46;
 	private static final int DATE_W = 38;
 
 	private final Entry entry;
@@ -43,11 +45,17 @@ class EntryRow extends JComponent
 		this.first = first;
 		this.last = last;
 		setOpaque(false);
-		setPreferredSize(new Dimension(10, HEIGHT));
+		setPreferredSize(new Dimension(10, entry.getClause() != null ? TALL : HEIGHT));
 		// A 99 told the way it is written now, even from an older save.
 		String full = entry.getKind() == Entry.Kind.MAX ? detail(entry) : entry.getDetail();
 		String worth = entry.getValue() > 0 ? ", worth " + Format.coins(entry.getValue()) : "";
-		setToolTipText(Format.date(entry.getAt()) + ": " + entry.getTitle() + (full == null ? "" : ", " + Format.lower(full)) + worth);
+		String told = entry.isMoment() ? Format.date(entry.getAt()) + ", " + Format.time(entry.getAt()) + ": " + entry.getTitle() + " (told by Codex " + entry.getApp() + ")"
+			: Format.date(entry.getAt()) + ": " + entry.getTitle() + (full == null ? "" : ", " + Format.lower(full)) + worth;
+		if (entry.getClause() != null)
+		{
+			told += ". " + entry.getClauseApp() + ": " + entry.getClause();
+		}
+		setToolTipText(told);
 	}
 
 	/**
@@ -59,11 +67,12 @@ class EntryRow extends JComponent
 	 */
 	void menu(Consumer<Entry> keep, Consumer<Entry> strike)
 	{
-		if ((strike == null && keep == null) || entry.getKind() == Entry.Kind.BEGIN)
+		if ((strike == null && keep == null) || entry.getKind() == Entry.Kind.BEGIN || entry.isMoment())
 		{
+			// A moment another plugin told is that plugin's to keep or strike.
 			return;
 		}
-		JPopupMenu menu = new JPopupMenu();
+		JPopupMenu menu = popup();
 		if (keep != null)
 		{
 			JMenuItem item = new JMenuItem("Make a keepsake card");
@@ -85,7 +94,47 @@ class EntryRow extends JComponent
 			});
 			menu.add(item);
 		}
-		setComponentPopupMenu(menu);
+	}
+
+	/** The row's right-click menu, made on first use. */
+	private JPopupMenu popup()
+	{
+		JPopupMenu menu = getComponentPopupMenu();
+		if (menu == null)
+		{
+			menu = new JPopupMenu();
+			setComponentPopupMenu(menu);
+		}
+		return menu;
+	}
+
+	/**
+	 * Adds "See this day in full" to the row's menu, and a click on the row opens it too.
+	 *
+	 * @param open called with the row's day, or null for no such item
+	 */
+	void day(Consumer<LocalDate> open)
+	{
+		if (open == null || date == null)
+		{
+			return;
+		}
+		JMenuItem item = new JMenuItem("See this day in full");
+		item.addActionListener(e -> open.accept(date));
+		JPopupMenu menu = popup();
+		menu.insert(item, 0);
+		setCursor(java.awt.Cursor.getPredefinedCursor(java.awt.Cursor.HAND_CURSOR));
+		addMouseListener(new java.awt.event.MouseAdapter()
+		{
+			@Override
+			public void mouseClicked(java.awt.event.MouseEvent e)
+			{
+				if (javax.swing.SwingUtilities.isLeftMouseButton(e))
+				{
+					open.accept(date);
+				}
+			}
+		});
 	}
 
 	/** Tells the row it stands for several of the same drop: its detail leads with the count. */
@@ -197,7 +246,14 @@ class EntryRow extends JComponent
 		{
 			g.drawLine(nx, ny, nx, h);
 		}
-		node(g, entry.getKind(), nx, ny, color);
+		if (entry.isMoment())
+		{
+			told(g, nx, ny, color);
+		}
+		else
+		{
+			node(g, entry.getKind(), nx, ny, color);
+		}
 
 		g.setFont(Theme.small());
 		FontMetrics small = g.getFontMetrics();
@@ -226,7 +282,32 @@ class EntryRow extends JComponent
 			g.setFont(Theme.small());
 			Ui.shadowed(g, Ui.clip(detail, small, right - tx), tx, ny + fm.getAscent() / 2 + small.getHeight(), Theme.TEXT_MUTED);
 		}
+		if (entry.getClause() != null)
+		{
+			g.setFont(Theme.small());
+			// Who told it is in the tooltip; the line keeps its room for what it says.
+			String clause = entry.getClause();
+			int cy = ny + fm.getAscent() / 2 + small.getHeight() * 2;
+			g.setColor(Theme.alpha(Theme.CLAUSE, 120));
+			g.fillRect(tx, cy - small.getAscent() + 1, 1, small.getAscent());
+			Ui.shadowed(g, Ui.clip(clause, small, right - tx - 4), tx + 4, cy, Theme.CLAUSE);
+		}
 		g.dispose();
+	}
+
+	/**
+	 * The node of a moment another Codex plugin told: a hollow ring, so the annals' own diamonds
+	 * stay apart from what was woven in; a death's ring is crossed.
+	 */
+	static void told(Graphics2D g, float x, float y, Color color)
+	{
+		g.setColor(Theme.INK_DEEP);
+		g.fill(new Ellipse2D.Float(x - 5.5f, y - 5.5f, 11, 11));
+		g.setColor(color);
+		g.setStroke(new BasicStroke(1.6f));
+		g.draw(new Ellipse2D.Float(x - 3.5f, y - 3.5f, 7, 7));
+		g.fill(new Ellipse2D.Float(x - 1.2f, y - 1.2f, 2.4f, 2.4f));
+		g.setStroke(new BasicStroke(1f));
 	}
 
 	/** Whether an entry gets the ringed node: a pet, a 99, the highest total. */

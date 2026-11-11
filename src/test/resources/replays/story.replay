@@ -1,0 +1,25 @@
+# One account story: other Codex plugins' moments (the suite's N1 storyV1 key) arrive while the
+# plugin runs, well-formed, damaged and from a later version, and the annals write their own.
+# Nothing is expected of what it shows: the replay fails if anything throws. The scene is
+# schematic, not the real map. The kill count line is the game's own wording.
+
+scene 3200 3200
+skill ATTACK 60
+skill HITPOINTS 60
+skill SLAYER 50
+at 3222 3218
+saved-in codexguardian storyV1 "{'version':1,'savedAt':1793003000000,'moments':[{'t':1793001000000,'kind':'closeCall','text':'Close call at Ice trolls, 6 hp','figure':'6 hp'},{'t':1793003000000,'kind':'death','text':'Died at Vorkath'}]}"
+saved-in codexsessionchronicle storyV1 "{'version':1,'moments':[{'t':1793003040000,'kind':'death','text':'Died during a Vorkath session'}]}"
+saved-in codexloginsight storyV1 "{'version':2,'moments':[{'t':1,'kind':'drop','text':'from a later version'}]}"
+saved-in codexbosspilot storyV1 "{broken"
+saved-in codexguardian journal "{'entries':[{'at':1793001000000,'type':'CLOSE_CALL','title':'Survived a close call','detail':'Down to 6/99 hitpoints'}]}"
+login
+tick 5
+chat GAMEMESSAGE "Your Vorkath kill count is: 1."
+tick 110
+saved-in codexbosspilot storyV1 "{'version':1,'moments':[{'t':1793000000000,'kind':'pb','text':'Vorkath personal best','figure':'1:02'}]}"
+saved-in codexguardian storyV1 ""
+tick 60
+state LOGIN_SCREEN
+tick 2
+shutdown

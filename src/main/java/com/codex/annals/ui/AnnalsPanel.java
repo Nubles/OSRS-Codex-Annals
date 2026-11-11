@@ -5,6 +5,7 @@ import com.codex.annals.core.Annals;
 import com.codex.annals.core.Chapters;
 import com.codex.annals.core.Entry;
 import com.codex.annals.core.Recap;
+import com.codex.annals.core.Story;
 import com.codex.annals.core.Today;
 import com.codex.annals.core.Goals;
 import com.codex.annals.core.Keepsake;
@@ -63,6 +64,10 @@ public class AnnalsPanel extends PluginPanel
 	/** Codex Ledger's saved worth, when that plugin is kept too. */
 	private Wealth.Saved wealth;
 	private List<Goals.Goal> goals = Collections.emptyList();
+	/** What other Codex plugins told, woven into the timeline. */
+	private List<Story.Moment> story = Collections.emptyList();
+	/** A short fingerprint of the story, so the timeline is rebuilt only when it changed. */
+	private long storyKey;
 
 	private Annals annals;
 	private ZoneId zone = ZoneId.systemDefault();
@@ -408,6 +413,18 @@ public class AnnalsPanel extends PluginPanel
 		this.goals = goals == null ? Collections.emptyList() : goals;
 	}
 
+	/** The moments other Codex plugins told, oldest first; woven into the timeline at the next rebuild. */
+	public void setStory(List<Story.Moment> story)
+	{
+		this.story = story == null ? Collections.emptyList() : story;
+		long key = this.story.size();
+		for (Story.Moment m : this.story)
+		{
+			key = key * 31 + m.getT() + m.getText().hashCode() + (m.getFigure() == null ? 0 : m.getFigure().hashCode());
+		}
+		storyKey = key;
+	}
+
 	/** Codex Ledger's saved worth, or null when it is not kept; shown at the next rebuild. */
 	public void setWealth(Wealth.Saved wealth)
 	{
@@ -445,7 +462,7 @@ public class AnnalsPanel extends PluginPanel
 		{
 			limit += PAGE;
 			rebuildTimeline();
-		}, items, icons, this::refreshLater, strike, this::keep, today));
+		}, items, icons, this::refreshLater, strike, this::keep, today, story, null));
 		if (typing)
 		{
 			search.requestFocusInWindow();
@@ -464,7 +481,7 @@ public class AnnalsPanel extends PluginPanel
 		}
 		// The last week's card changes only when the week turns, which the date covers.
 		return (annals == null ? "none" : annals.getEntries().size() + ":" + sum) + "/" + chapters.getSelected() + "/" + limit + "/" + zone + "/" + LocalDate.now(zone)
-			+ "/" + search.query() + "/" + (annals == null ? 0 : annals.getWeeks().size());
+			+ "/" + search.query() + "/" + (annals == null ? 0 : annals.getWeeks().size()) + "/" + storyKey;
 	}
 
 	private Recap recap()
