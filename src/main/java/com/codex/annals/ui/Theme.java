@@ -97,6 +97,10 @@ public final class Theme
 	public static final Color XP = TEAL;
 	public static final Color FEAT = new Color(150, 170, 230);
 	public static final Color KILLS = EMBER;
+	/** Personal bests and the Trophy Room: a warmer, brighter gold than a drop's. */
+	public static final Color TROPHY = new Color(240, 196, 98);
+	/** The second clause another Codex plugin adds to a line. */
+	public static final Color CLAUSE = new Color(128, 178, 168);
 
 	/** The colour of a kind of entry. */
 	public static Color entry(Entry.Kind kind)
@@ -123,6 +127,16 @@ public final class Theme
 			case XP:
 			case COMBAT:
 				return GREEN;
+			case DEATH:
+				return BLOOD;
+			case CLOSE_CALL:
+				return mix(EMBER, BLOOD, 0.45);
+			case PB:
+				return TROPHY;
+			case FIND:
+				return mix(TEAL, GOLD, 0.4);
+			case MOMENT:
+				return mix(FEAT, TEXT_MUTED, 0.35);
 			default:
 				return GOLD_DIM;
 		}

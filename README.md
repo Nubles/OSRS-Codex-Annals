@@ -15,6 +15,7 @@ It is part of the **Codex** suite of RuneLite plugins and shares their look: war
 
 ### Timeline
 - **Timeline.** Your account's history, newest first, in chapters by month. Filter it to Skills, Feats (quests, diaries, combat tasks), Loot (log slots, pets, drops, clues) or Bosses. A day of ordinary levels folds into one line, so a long grind never buries a pet. Each line leads with what matters: a drop's value and where it came from, or how far a level still is from 99. At the very end sits the prologue: where the account stood the day the annals began. If a line should not be there, right-click it to strike it from the annals. Each month opens with a line of what it held ("1 99, 3 log slots, 14 levels"), and at the top sits **On this day**: what you did on today's date in earlier years, six months and a month ago. Below it, **Last week** looks back at the last whole week: time played, experience and the skills it went to, kills, levels and log slots, and how the week compares with your usual one. A search box finds any entry by name, skill, boss, item or quest. Every line carries its picture: the item, the skill, a pet's own likeness, or the quest point cape and achievement diary cape for quests and diaries.
+- **One account story.** With other Codex plugins installed, the timeline tells your whole account, each moment once. A moment the annals already hold gains a second clause from the plugin that knows more: "99 Ranged" adds *in a 3h 10m session at 412k/hr* from Session Chronicle, a log slot adds its kill count and luck from Log Insight. A moment the annals do not hold becomes a line of its own, marked by a hollow ring and the name of the plugin that told it: a personal best from Boss Pilot or a pilot, a close call or a death from Guardian. A death is Guardian's to tell, so the same death from Chronicle is folded into Guardian's line rather than told twice. Hover any line to see who told it.
 - **Today.** At the top of the timeline, the day so far: time played, experience gained and the skills it went to, levels, kills and anything written down, with a bar for how much of your usual day of play it already is. It turns over at midnight on its own, as does every page that speaks of today, even with the client left open.
 - **Milestones in chat.** When a 99, a total level or experience milestone, a first kill or a big drop is written down, a short line in the chat box says so, and on the anniversary of something in your annals a line at login remembers it ("On this day in 2025: 99 Slayer"). At your first login of a new week, a line tells what the week before held. Each can be turned off.
 
@@ -58,10 +59,13 @@ It is part of the **Codex** suite of RuneLite plugins and shares their look: war
 
 ## With other Codex plugins
 
-Annals works on its own. When these are installed too, it reads their saved data, never writes it, and goes on as before if they are removed:
+Annals works on its own. When these are installed too, it reads their saved data, never writes it, and goes on as before if they are removed or their data cannot be read:
 
 - **Codex Ledger**: your worth over the year, for the Year tab's records and, if you turn *Worth on cards* on, the cards.
 - **Codex Navigator**: the goals you pin, dated on the Ahead tab.
+- **Every Codex plugin that tells moments** (Guardian, Session Chronicle, Log Insight, Boss Pilot, the pilots and the rest): their moments, woven into the timeline. Until Guardian tells its own, its run journal stands in for its deaths and close calls.
+
+Annals also tells its own milestones (99s, totals, quests, diaries, log slots, pets, first kills and kill count milestones, notable drops) in the suite's shared story shape, for Codex Home and the others to read.
 
 ## How it keeps the annals
 

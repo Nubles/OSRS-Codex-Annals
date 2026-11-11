@@ -5,6 +5,7 @@ import com.codex.annals.core.Baseline;
 import com.codex.annals.core.Entry;
 import com.codex.annals.core.Memories;
 import com.codex.annals.core.MonthNote;
+import com.codex.annals.core.Story;
 import com.codex.annals.core.Timeline;
 import com.codex.annals.core.WeekNote;
 import java.awt.BorderLayout;
@@ -41,9 +42,12 @@ final class TimelineView
 	 * @param more called to show more rows
 	 * @param keep called with an entry the player asked a keepsake card of, or null
 	 * @param today the day-so-far card, kept by the panel and filled on its own; or null
+	 * @param story the moments other Codex plugins told, woven in so each is told once; may be empty
+	 * @param day called with a day the player asked to see in full, or null
 	 */
 	static JComponent build(Annals annals, ZoneId zone, Segmented chapters, SearchField search, int limit, Runnable more,
-		ItemIcons items, Icons icons, Runnable onLoaded, Consumer<Entry> strike, Consumer<Entry> keep, JComponent today)
+		ItemIcons items, Icons icons, Runnable onLoaded, Consumer<Entry> strike, Consumer<Entry> keep, JComponent today,
+		List<Story.Moment> story, Consumer<LocalDate> day)
 	{
 		StackPanel stack = new StackPanel(6, 8);
 		stack.add(chapters);
@@ -60,7 +64,8 @@ final class TimelineView
 		}
 
 		Entry.Chapter chapter = Entry.Chapter.values()[chapters.getSelected()];
-		List<Timeline.Row> rows = Timeline.rows(query.isEmpty() ? annals.getEntries() : matching(annals.getEntries(), query), chapter, zone);
+		List<Entry> woven = Story.weave(annals.getEntries(), story);
+		List<Timeline.Row> rows = Timeline.rows(query.isEmpty() ? woven : matching(woven, query), chapter, zone);
 		if (rows.isEmpty() && !query.isEmpty())
 		{
 			stack.add(Views.note("Nothing found", "No entry " + (chapter == Entry.Chapter.ALL ? "" : "in this chapter ")
@@ -137,6 +142,7 @@ final class TimelineView
 				{
 					line.menu(keep, strike);
 				}
+				line.day(day);
 				line.setAlignmentX(JComponent.LEFT_ALIGNMENT);
 				run.add(line);
 			}
